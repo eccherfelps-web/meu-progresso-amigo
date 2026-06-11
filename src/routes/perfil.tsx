@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, PageHeader } from "@/components/hlt/Shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,9 @@ import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
 import type { Profile } from "@/lib/hlt/types";
 import { dailyMacros, tdee } from "@/lib/hlt/calc";
 import { toast } from "sonner";
-import { Download, Upload, Trash2 } from "lucide-react";
+import { Download, Upload, Trash2, Cloud, RefreshCw } from "lucide-react";
+import { syncNow, onSyncState, getLastSyncError, type SyncState } from "@/lib/hlt/sync";
+import { remoteEnabled } from "@/lib/hlt/supabase";
 
 export const Route = createFileRoute("/perfil")({
   head: () => ({ meta: [{ title: "Perfil & Configurações" }] }),
@@ -81,8 +83,8 @@ function PerfilPage() {
       <Card className="mb-4 space-y-2">
         <h3 className="font-semibold">Backup & dados</h3>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => {
-            const blob = new Blob([exportAll()], { type: "application/json" });
+          <Button variant="outline" size="sm" onClick={async () => {
+            const blob = new Blob([await exportAll()], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url; a.download = `hlt-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
@@ -91,23 +93,25 @@ function PerfilPage() {
           <label className="inline-flex">
             <input type="file" accept="application/json" className="hidden" onChange={(e) => {
               const f = e.target.files?.[0]; if (!f) return;
-              f.text().then((t) => { try { importAll(t); toast.success("Dados importados — recarregue"); setTimeout(() => location.reload(), 600); } catch { toast.error("Arquivo inválido"); } });
+              f.text().then(async (t) => { try { await importAll(t); toast.success("Dados importados!"); setTimeout(() => location.reload(), 600); } catch { toast.error("Arquivo inválido"); } });
             }} />
             <Button variant="outline" size="sm" asChild><span><Upload className="size-4 mr-1" /> Importar JSON</span></Button>
           </label>
           <Button variant="outline" size="sm" className="text-danger" onClick={() => {
             if (!confirm("Tem certeza? Isso apaga TODOS os dados.")) return;
             if (!confirm("Confirme novamente: apagar tudo?")) return;
-            resetAll(); toast.success("Tudo apagado"); setTimeout(() => location.reload(), 600);
+            void resetAll().then(() => { toast.success("Tudo apagado"); setTimeout(() => location.reload(), 600); });
           }}><Trash2 className="size-4 mr-1" /> Resetar tudo</Button>
         </div>
       </Card>
 
+      <SyncCard />
+
       <Card>
         <h3 className="font-semibold mb-2">Sobre</h3>
         <div className="text-xs text-muted-foreground space-y-1">
-          <div>Healthy Life Tracker · v1.0</div>
-          <div>100% offline · todos os dados ficam no seu navegador.</div>
+          <div>Healthy Life Tracker · v1.1</div>
+          <div>Offline-first: tudo é salvo no aparelho (IndexedDB) na hora e sincroniza com a nuvem quando configurada.</div>
         </div>
       </Card>
     </div>
@@ -116,4 +120,32 @@ function PerfilPage() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className="label-up block mb-1">{label}</label>{children}</div>;
+}
+
+function SyncCard() {
+  const [state, setState] = useState<SyncState>("disabled");
+  useEffect(() => onSyncState(setState), []);
+  const enabled = remoteEnabled();
+  const label =
+    state === "syncing" ? "Sincronizando…" :
+    state === "idle" ? "Sincronizado com a nuvem" :
+    state === "error" ? `Erro: ${getLastSyncError() ?? "falha na última sincronização"}` :
+    state === "offline" ? "Offline — sincroniza quando a conexão voltar" :
+    "Nuvem não configurada";
+  return (
+    <Card className="mb-4 space-y-2">
+      <h3 className="font-semibold flex items-center gap-2"><Cloud className="size-4" /> Sincronização</h3>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      {enabled ? (
+        <Button variant="outline" size="sm" onClick={() => void syncNow()} disabled={state === "syncing"}>
+          <RefreshCw className="size-4 mr-1" /> Sincronizar agora
+        </Button>
+      ) : (
+        <div className="text-xs text-muted-foreground">
+          Para ativar: crie um projeto gratuito no Supabase, rode o <code>supabase/schema.sql</code> e defina
+          <code> VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> no ambiente. Veja MIGRACAO.md.
+        </div>
+      )}
+    </Card>
+  );
 }

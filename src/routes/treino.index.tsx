@@ -2,8 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Card, PageHeader } from "@/components/hlt/Shell";
 import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
-import { DEFAULT_EXERCISES } from "@/lib/hlt/defaults";
-import type { Exercise, MuscleGroup, WorkoutSession } from "@/lib/hlt/types";
+import { DEFAULT_EXERCISES, TRAINING_DAYS, exercisesForDay } from "@/lib/hlt/defaults";
+import type { Exercise, WorkoutSession } from "@/lib/hlt/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,15 +11,27 @@ import { Pencil, Plus, Trash2, Play, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/treino/")({
-  head: () => ({ meta: [{ title: "Treino — PPL" }] }),
+  head: () => ({ meta: [{ title: "Treino — Semana" }] }),
   component: TreinoPage,
 });
 
-const GROUPS: { key: MuscleGroup; label: string; days: string; color: string }[] = [
-  { key: "push", label: "Push", days: "Seg & Sex", color: "bg-info/15 text-info" },
-  { key: "pull", label: "Pull", days: "Ter & Sáb", color: "bg-primary/15 text-primary" },
-  { key: "legs", label: "Legs", days: "Quarta", color: "bg-warning/15 text-warning" },
-];
+const GROUP_BADGE: Record<string, string> = {
+  push: "bg-info/15 text-info",
+  pull: "bg-primary/15 text-primary",
+  legs: "bg-warning/15 text-warning",
+};
+
+// aba inicial: o dia de treino de hoje; se hoje for descanso, o próximo dia
+function defaultDay(): string {
+  const today = new Date().getDay();
+  if (TRAINING_DAYS.some((d) => d.dow === today)) return String(today);
+  for (let i = 1; i <= 7; i++) {
+    const dow = (today + i) % 7;
+    const d = TRAINING_DAYS.find((x) => x.dow === dow);
+    if (d) return String(d.dow);
+  }
+  return String(TRAINING_DAYS[0].dow);
+}
 
 function TreinoPage() {
   const [exercises, setExercises] = useLocalStorage<Exercise[]>(KEYS.exercises, DEFAULT_EXERCISES);
@@ -29,6 +41,7 @@ function TreinoPage() {
 
   const weeksTraining = Math.min(8, Math.floor(sessions.length / 5));
   const deload = weeksTraining >= 8;
+  const todayDow = new Date().getDay();
 
   const saveLoad = (id: string) => {
     const v = parseFloat(editing[id] || "0");
@@ -42,15 +55,19 @@ function TreinoPage() {
     toast.success("Exercício removido");
   };
 
-  const addExercise = (group: MuscleGroup) => {
-    const name = prompt("Nome do exercício:");
+  const addExercise = (day: (typeof TRAINING_DAYS)[number]) => {
+    const name = prompt(`Nome do exercício (${day.label}):`);
     if (!name) return;
-    setExercises((prev) => [...prev, { id: `${group}-${Date.now()}`, name, group, sets: 3, reps: "10-12", load_kg: null }]);
+    setExercises((prev) => [
+      ...prev,
+      { id: `${day.group}-${Date.now()}`, name, group: day.group, sets: 3, reps: "10-12", load_kg: null, days: [day.dow] },
+    ]);
+    toast.success(`Adicionado ao treino de ${day.label}`);
   };
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
-      <PageHeader title="Plano de Treino" subtitle="Push • Pull • Legs · 5x por semana" />
+      <PageHeader title="Plano de Treino" subtitle="Organizado por dia da semana · 5x por semana" />
 
       {deload && (
         <Card className="mb-4 border-warning/40 bg-warning/10">
@@ -64,23 +81,32 @@ function TreinoPage() {
         </Card>
       )}
 
-      <Tabs defaultValue="push">
-        <TabsList className="grid grid-cols-3 w-full mb-4">
-          {GROUPS.map((g) => (
-            <TabsTrigger key={g.key} value={g.key}>{g.label}</TabsTrigger>
+      <Tabs defaultValue={defaultDay()}>
+        <TabsList className="grid grid-cols-5 w-full mb-4">
+          {TRAINING_DAYS.map((d) => (
+            <TabsTrigger key={d.dow} value={String(d.dow)} className="relative">
+              {d.short}
+              {d.dow === todayDow && <span className="absolute -top-1 -right-1 size-2 rounded-full bg-primary" />}
+            </TabsTrigger>
           ))}
         </TabsList>
 
-        {GROUPS.map((g) => {
-          const list = exercises.filter((e) => e.group === g.key);
+        {TRAINING_DAYS.map((d) => {
+          const list = exercisesForDay(exercises, d);
           return (
-            <TabsContent key={g.key} value={g.key} className="space-y-3">
-              <div className="flex items-center justify-between">
+            <TabsContent key={d.dow} value={String(d.dow)} className="space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
-                  <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${g.color}`}>{g.label.toUpperCase()}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">{g.days}</span>
+                  <div className="font-semibold">
+                    Treino de {d.label}
+                    {d.dow === todayDow && <span className="ml-2 text-xs text-primary">— é hoje!</span>}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${GROUP_BADGE[d.group]}`}>{d.group}</span>
+                    <span className="text-xs text-muted-foreground">{d.focus}</span>
+                  </div>
                 </div>
-                <Button size="sm" onClick={() => navigate({ to: "/treino/ativo", search: { type: g.key } })}>
+                <Button size="sm" onClick={() => navigate({ to: "/treino/ativo", search: { type: d.group, day: d.dow } })}>
                   <Play className="size-4 mr-1" /> Iniciar Treino
                 </Button>
               </div>
@@ -122,9 +148,12 @@ function TreinoPage() {
                   </div>
                 </Card>
               ))}
+              {list.length === 0 && (
+                <Card className="text-sm text-muted-foreground">Nenhum exercício neste dia ainda — adicione abaixo.</Card>
+              )}
 
-              <Button variant="outline" className="w-full" onClick={() => addExercise(g.key)}>
-                <Plus className="size-4 mr-1" /> Adicionar exercício
+              <Button variant="outline" className="w-full" onClick={() => addExercise(d)}>
+                <Plus className="size-4 mr-1" /> Adicionar exercício à {d.label}
               </Button>
             </TabsContent>
           );

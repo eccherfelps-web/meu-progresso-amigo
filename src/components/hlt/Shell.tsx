@@ -1,10 +1,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, Dumbbell, Apple, Scale, BarChart3, User } from "lucide-react";
-import { useEffect } from "react";
+import { Home, Dumbbell, Apple, Scale, BarChart3, User, Cloud, CloudOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useLocalStorage } from "@/lib/hlt/storage";
 import { KEYS } from "@/lib/hlt/storage";
 import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
 import type { Profile } from "@/lib/hlt/types";
+import { startAutoSync, onSyncState, type SyncState } from "@/lib/hlt/sync";
+import { checkAchievements } from "@/lib/hlt/achievements";
 
 const NAV = [
   { to: "/", label: "Início", icon: Home },
@@ -18,12 +21,31 @@ const NAV = [
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [profile] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
+  const [sync, setSync] = useState<SyncState>("disabled");
 
   useEffect(() => {
     if (typeof document === "undefined") return;
     const theme = profile.theme ?? "dark";
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [profile.theme]);
+
+  // boot: liga a sincronização e verifica conquistas pendentes
+  useEffect(() => {
+    startAutoSync();
+    const off = onSyncState(setSync);
+    const t = setTimeout(async () => {
+      const fresh = await checkAchievements();
+      for (const a of fresh) toast.success(`${a.icon} Conquista desbloqueada: ${a.name}!`);
+    }, 1500);
+    return () => { off(); clearTimeout(t); };
+  }, []);
+
+  const syncLabel =
+    sync === "syncing" ? { icon: Cloud, txt: "sincronizando…" } :
+    sync === "idle"    ? { icon: Cloud, txt: "nuvem ok" } :
+    sync === "error"   ? { icon: CloudOff, txt: "erro de sync" } :
+    sync === "offline" ? { icon: CloudOff, txt: "offline" } :
+                         { icon: CloudOff, txt: "local" };
 
   return (
     <div className="min-h-screen flex w-full bg-background text-foreground">
@@ -48,8 +70,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        <div className="mt-auto px-2 text-xs text-muted-foreground">
-          v1.0 · {profile.name}
+        <div className="mt-auto px-2 text-xs text-muted-foreground flex items-center gap-1.5">
+          <syncLabel.icon className="size-3.5" /> {syncLabel.txt} · v1.1 · {profile.name}
         </div>
       </aside>
 

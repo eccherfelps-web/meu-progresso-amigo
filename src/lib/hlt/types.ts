@@ -24,6 +24,9 @@ export interface Exercise {
   reps: string;
   load_kg?: number | null;
   notes?: string;
+  /** Dias da semana em que o exercício aparece (0=Dom … 6=Sáb).
+   *  Ausente = todos os dias de treino do grupo. */
+  days?: number[];
 }
 
 export interface WorkoutSet {

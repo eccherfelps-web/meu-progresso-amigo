@@ -8,7 +8,9 @@ import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
 import { DEFAULT_PROFILE, FOOD_DB } from "@/lib/hlt/defaults";
 import type { FoodItem, FoodLog, HydrationLog, MealKey, Profile } from "@/lib/hlt/types";
 import { dailyMacros, todayISO } from "@/lib/hlt/calc";
-import { Plus, Trash2, Droplet, Search } from "lucide-react";
+import { Plus, Trash2, Droplet, Search, Globe, Loader2 } from "lucide-react";
+import { searchOpenFoodFacts } from "@/lib/hlt/foodApi";
+import type { FoodDb } from "@/lib/hlt/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/nutricao")({
@@ -150,8 +152,25 @@ function AddFoodDialog({ onAdd }: { onAdd: (i: FoodItem) => void }) {
   const [search, setSearch] = useState("");
   const [grams, setGrams] = useState("100");
   const [custom, setCustom] = useState({ name: "", kcal: "", protein_g: "", carbs_g: "", fat_g: "" });
+  const [online, setOnline] = useState<FoodDb[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [onlineMsg, setOnlineMsg] = useState<string | null>(null);
 
   const filtered = FOOD_DB.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()));
+
+  const searchOnline = async () => {
+    if (!search.trim() || searching) return;
+    setSearching(true); setOnlineMsg(null); setOnline([]);
+    try {
+      const results = await searchOpenFoodFacts(search.trim());
+      setOnline(results);
+      if (!results.length) setOnlineMsg("Nada encontrado online para essa busca.");
+    } catch {
+      setOnlineMsg("Busca online indisponível — verifique a conexão.");
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const pickDb = (f: typeof FOOD_DB[0]) => {
     const g = parseFloat(grams) || 100;
@@ -193,8 +212,23 @@ function AddFoodDialog({ onAdd }: { onAdd: (i: FoodItem) => void }) {
                 <div className="text-xs text-muted-foreground">{f.kcal} kcal/100g · P {f.protein_g} · C {f.carbs_g} · G {f.fat_g}</div>
               </button>
             ))}
-            {filtered.length === 0 && <div className="p-3 text-sm text-muted-foreground text-center">Nenhum resultado</div>}
+            {filtered.length === 0 && <div className="p-3 text-sm text-muted-foreground text-center">Nenhum resultado local</div>}
           </div>
+          <Button variant="outline" size="sm" className="w-full" onClick={searchOnline} disabled={searching || !search.trim()}>
+            {searching ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Globe className="size-4 mr-1" />}
+            Buscar online (Open Food Facts)
+          </Button>
+          {onlineMsg && <div className="text-xs text-muted-foreground text-center">{onlineMsg}</div>}
+          {online.length > 0 && (
+            <div className="max-h-48 overflow-y-auto border border-info/40 rounded-md">
+              {online.map((f, i) => (
+                <button key={i} onClick={() => pickDb(f)} className="block w-full text-left px-3 py-2 hover:bg-accent border-b border-border last:border-0">
+                  <div className="text-sm font-medium flex items-center gap-1.5"><Globe className="size-3 text-info shrink-0" /><span className="truncate">{f.name}</span></div>
+                  <div className="text-xs text-muted-foreground">{f.kcal} kcal/100g · P {f.protein_g} · C {f.carbs_g} · G {f.fat_g}</div>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="pt-3 border-t border-border">
             <div className="label-up mb-2">Ou cadastre manualmente (por porção)</div>
             <div className="grid grid-cols-2 gap-2">

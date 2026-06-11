@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, PageHeader } from "@/components/hlt/Shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,8 @@ import type { BodyMeasure, Profile, WeightLog } from "@/lib/hlt/types";
 import { todayISO } from "@/lib/hlt/calc";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { toast } from "sonner";
+import { Camera, Trash2, Images } from "lucide-react";
+import { savePhoto, listPhotos, removePhoto, type PhotoRow } from "@/lib/hlt/photos";
 
 export const Route = createFileRoute("/peso")({
   head: () => ({ meta: [{ title: "Peso Corporal" }] }),
@@ -109,6 +111,8 @@ function PesoPage() {
       </Card>
 
       <MeasuresSection measures={measures} setMeasures={setMeasures} />
+
+      <PhotosSection />
     </div>
   );
 }
@@ -159,6 +163,97 @@ function MeasuresSection({ measures, setMeasures }: { measures: BodyMeasure[]; s
           ))}
         </div>
       )}
+    </Card>
+  );
+}
+
+const ANGLES = [
+  { key: "frontal", label: "Frontal" },
+  { key: "lateral", label: "Lateral" },
+  { key: "traseira", label: "Traseira" },
+] as const;
+
+function PhotosSection() {
+  const [photos, setPhotos] = useState<PhotoRow[]>([]);
+  const [angle, setAngle] = useState<PhotoRow["angle"]>("frontal");
+  const [compare, setCompare] = useState<PhotoRow[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const refresh = () => { void listPhotos().then(setPhotos); };
+  useEffect(refresh, []);
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) {
+      await savePhoto(f, angle);
+      refresh();
+      toast.success("Foto salva — daqui a 3 meses você agradece 📈");
+    }
+    e.target.value = "";
+  };
+
+  const toggleCompare = (p: PhotoRow) => {
+    setCompare((prev) => {
+      if (prev.some((x) => x.id === p.id)) return prev.filter((x) => x.id !== p.id);
+      return prev.length >= 2 ? [prev[1], p] : [...prev, p];
+    });
+  };
+
+  return (
+    <Card className="mt-4">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 className="font-semibold flex items-center gap-2"><Images className="size-4" /> Fotos de evolução</h3>
+        <div className="flex gap-1">
+          {ANGLES.map((a) => (
+            <Button key={a.key} size="sm" variant={angle === a.key ? "default" : "outline"} onClick={() => setAngle(a.key)}>
+              {a.label}
+            </Button>
+          ))}
+          <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+            <Camera className="size-4 mr-1" /> Adicionar
+          </Button>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+        </div>
+      </div>
+
+      {compare.length === 2 && (
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {compare.map((p) => (
+            <figure key={p.id}>
+              <img src={p.dataUrl} alt={`${p.angle} em ${p.date}`} className="w-full rounded-lg object-cover" />
+              <figcaption className="text-xs text-muted-foreground text-center mt-1">{p.date} · {p.angle}</figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+      {compare.length === 1 && <div className="text-xs text-info mb-3">Selecione mais uma foto para comparar lado a lado.</div>}
+
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+        {photos.map((p) => {
+          const selected = compare.some((x) => x.id === p.id);
+          return (
+            <div key={p.id} className={`relative group rounded-lg overflow-hidden border ${selected ? "border-primary ring-2 ring-primary/50" : "border-border"}`}>
+              <button onClick={() => toggleCompare(p)} className="block w-full">
+                <img src={p.dataUrl} alt={`${p.angle} em ${p.date}`} className="aspect-[3/4] w-full object-cover" />
+              </button>
+              <div className="absolute bottom-0 inset-x-0 bg-background/80 text-[9px] text-center py-0.5">{p.date.slice(5)} · {p.angle.slice(0, 4)}</div>
+              <button
+                onClick={() => { void removePhoto(p.id).then(refresh); }}
+                className="absolute top-1 right-1 rounded bg-background/80 p-1 opacity-0 group-hover:opacity-100 transition"
+                aria-label="Excluir foto"
+              >
+                <Trash2 className="size-3 text-danger" />
+              </button>
+            </div>
+          );
+        })}
+        {photos.length === 0 && (
+          <div className="col-span-3 md:col-span-6 text-xs text-muted-foreground italic py-4 text-center">
+            Nenhuma foto ainda. Tire a primeira hoje — frontal, lateral e traseira.
+          </div>
+        )}
+      </div>
+      <div className="text-[10px] text-muted-foreground mt-2">Toque em duas fotos para compará-las lado a lado. As imagens ficam apenas neste aparelho.</div>
     </Card>
   );
 }

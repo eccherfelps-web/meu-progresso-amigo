@@ -8,7 +8,9 @@ import type { Assessment, Exercise, FoodLog, MealKey, Profile, WeightLog, Workou
 import { dailyMacros } from "@/lib/hlt/calc";
 import { LineChart, Line, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, Radar, ComposedChart, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, Trophy } from "lucide-react";
+import { epley } from "@/lib/hlt/onerm";
+import { ACHIEVEMENTS, type UnlockedAchievement } from "@/lib/hlt/achievements";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/analytics")({
@@ -25,6 +27,7 @@ function AnalyticsPage() {
   const [foods] = useLocalStorage<FoodLog[]>(KEYS.foods, []);
   const [profile] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
   const [assessment, setAssessment] = useLocalStorage<Assessment | null>(KEYS.assessment, null);
+  const [unlocked] = useLocalStorage<UnlockedAchievement[]>(KEYS.achievements, []);
   const [selectedExId, setSelectedExId] = useState(exercises[0]?.id ?? "");
 
   const weeksOfData = useMemo(() => {
@@ -41,9 +44,15 @@ function AnalyticsPage() {
         const ex = s.exercises.find((e) => e.exercise_id === selectedExId);
         if (!ex || ex.sets.length === 0) return [];
         const maxW = Math.max(...ex.sets.map((x) => x.weight_kg));
-        return [{ date: s.date.slice(5, 10), peso: maxW }];
+        const rm = Math.max(...ex.sets.map((x) => epley(x.weight_kg, x.reps)));
+        return [{ date: s.date.slice(5, 10), peso: maxW, rm }];
       });
   }, [sessions, selectedExId]);
+
+  const best1RM = useMemo(
+    () => (loadHistory.length ? Math.max(...loadHistory.map((d) => d.rm)) : 0),
+    [loadHistory],
+  );
 
   const volumeByGroup = useMemo(() => {
     const byWeek: Record<string, Record<string, number>> = {};
@@ -163,7 +172,10 @@ function AnalyticsPage() {
 
       <Card className="mb-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Progressão de carga</h3>
+          <div>
+            <h3 className="font-semibold">Progressão de carga & força</h3>
+            {best1RM > 0 && <div className="text-xs text-muted-foreground">1RM estimado atual (Epley): <span className="font-semibold text-warning">{best1RM} kg</span></div>}
+          </div>
           <Select value={selectedExId} onValueChange={setSelectedExId}>
             <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -179,7 +191,8 @@ function AnalyticsPage() {
                 <XAxis dataKey="date" stroke="var(--color-muted-foreground)" fontSize={11} />
                 <YAxis stroke="var(--color-muted-foreground)" fontSize={11} />
                 <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)" }} />
-                <Line type="monotone" dataKey="peso" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="peso" name="Carga máx." stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="rm" name="1RM estimado" stroke="var(--color-warning)" strokeWidth={2} strokeDasharray="5 3" dot={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : <Empty>Sem dados para este exercício ainda.</Empty>}
@@ -232,6 +245,23 @@ function AnalyticsPage() {
               })}
             </div>
           ))}
+        </div>
+      </Card>
+
+      <Card className="mb-4">
+        <div className="flex items-center gap-2 mb-3"><Trophy className="size-5 text-warning" /><h3 className="font-semibold">Conquistas</h3>
+          <span className="text-xs text-muted-foreground ml-auto">{unlocked.length}/{ACHIEVEMENTS.length}</span>
+        </div>
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+          {ACHIEVEMENTS.map((a) => {
+            const got = unlocked.some((u) => u.code === a.code);
+            return (
+              <div key={a.code} title={a.desc} className={`rounded-lg border p-2 text-center transition ${got ? "border-warning/50 bg-warning/10" : "border-border bg-muted/30 opacity-45"}`}>
+                <div className="text-xl">{a.icon}</div>
+                <div className="text-[9px] mt-1 leading-tight">{a.name}</div>
+              </div>
+            );
+          })}
         </div>
       </Card>
 

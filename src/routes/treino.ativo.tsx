@@ -5,24 +5,29 @@ import { Card, PageHeader } from "@/components/hlt/Shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
-import { DEFAULT_EXERCISES } from "@/lib/hlt/defaults";
+import { DEFAULT_EXERCISES, TRAINING_DAYS } from "@/lib/hlt/defaults";
 import type { Exercise, MuscleGroup, SessionExercise, WorkoutSession, WorkoutSet } from "@/lib/hlt/types";
 import { Trophy, Timer, Check, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/treino/ativo")({
-  validateSearch: z.object({ type: z.enum(["push", "pull", "legs"]).default("push") }),
+  validateSearch: z.object({ type: z.enum(["push", "pull", "legs"]).default("push"), day: z.number().int().min(0).max(6).optional() }),
   head: () => ({ meta: [{ title: "Treino em andamento" }] }),
   component: TreinoAtivo,
 });
 
 function TreinoAtivo() {
-  const { type } = Route.useSearch();
+  const { type, day } = Route.useSearch();
   const navigate = useNavigate();
   const [exercises] = useLocalStorage<Exercise[]>(KEYS.exercises, DEFAULT_EXERCISES);
   const [sessions, setSessions] = useLocalStorage<WorkoutSession[]>(KEYS.sessions, []);
+  const dayInfo = day != null ? TRAINING_DAYS.find((d) => d.dow === day) : undefined;
 
-  const list = useMemo(() => exercises.filter((e) => e.group === (type as MuscleGroup)), [exercises, type]);
+  const list = useMemo(
+    () => exercises.filter((e) =>
+      e.group === (type as MuscleGroup) && (day == null || !e.days || e.days.includes(day))),
+    [exercises, type, day],
+  );
 
   const [phase, setPhase] = useState<"warmup" | "workout" | "done">("warmup");
   const [warmupLeft, setWarmupLeft] = useState(300);
@@ -144,7 +149,7 @@ function TreinoAtivo() {
   if (phase === "warmup") {
     return (
       <div className="p-4 md:p-8 max-w-2xl mx-auto">
-        <PageHeader title="Aquecimento" subtitle="5 minutos de mobilidade leve" />
+        <PageHeader title="Aquecimento" subtitle={`${dayInfo ? `Treino de ${dayInfo.label} · ` : ""}5 minutos de mobilidade leve`} />
         <Card className="text-center py-12">
           <Timer className="size-12 mx-auto mb-4 text-primary" />
           <div className="text-6xl font-bold tabular-nums">{fmtTime(warmupLeft)}</div>

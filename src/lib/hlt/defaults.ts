@@ -15,28 +15,28 @@ export const DEFAULT_PROFILE: Profile = {
 
 export const DEFAULT_EXERCISES: Exercise[] = [
   // PUSH
-  { id: "p1", name: "Supino Inclinado com Halteres", group: "push", sets: 4, reps: "8-12", load_kg: 16 },
-  { id: "p2", name: "Supino Reto com Halteres", group: "push", sets: 3, reps: "10-12", load_kg: null },
-  { id: "p3", name: "Crossover / Voador", group: "push", sets: 3, reps: "12-15", load_kg: null },
-  { id: "p4", name: "Desenvolvimento com Halteres", group: "push", sets: 4, reps: "8-12", load_kg: null },
-  { id: "p5", name: "Elevação Lateral", group: "push", sets: 4, reps: "12-15", load_kg: null },
-  { id: "p6", name: "Extensão de Tríceps com Halter (Testa)", group: "push", sets: 3, reps: "10-12", load_kg: null },
-  { id: "p7", name: "Pulley Tríceps (corda)", group: "push", sets: 3, reps: "12-15", load_kg: null },
+  { id: "p1", name: "Supino Inclinado com Halteres", group: "push", sets: 4, reps: "8-12", load_kg: 16, days: [1, 5] },
+  { id: "p2", name: "Supino Reto com Halteres", group: "push", sets: 3, reps: "10-12", load_kg: null, days: [1, 5] },
+  { id: "p3", name: "Crossover / Voador", group: "push", sets: 3, reps: "12-15", load_kg: null, days: [1, 5] },
+  { id: "p4", name: "Desenvolvimento com Halteres", group: "push", sets: 4, reps: "8-12", load_kg: null, days: [1, 5] },
+  { id: "p5", name: "Elevação Lateral", group: "push", sets: 4, reps: "12-15", load_kg: null, days: [1, 5] },
+  { id: "p6", name: "Extensão de Tríceps com Halter (Testa)", group: "push", sets: 3, reps: "10-12", load_kg: null, days: [1, 5] },
+  { id: "p7", name: "Pulley Tríceps (corda)", group: "push", sets: 3, reps: "12-15", load_kg: null, days: [1, 5] },
   // PULL
-  { id: "pl1", name: "Puxada Frontal / Barra Fixa", group: "pull", sets: 4, reps: "8-12", load_kg: null },
-  { id: "pl2", name: "Remada Sentada no Cabo", group: "pull", sets: 3, reps: "10-12", load_kg: null },
-  { id: "pl3", name: "Remada Unilateral com Halter", group: "pull", sets: 3, reps: "10-12", load_kg: null },
-  { id: "pl4", name: "Face Pull", group: "pull", sets: 3, reps: "15", load_kg: null },
-  { id: "pl5", name: "Rosca Direta (Barra EZ)", group: "pull", sets: 4, reps: "10-12", load_kg: null },
-  { id: "pl6", name: "Rosca Martelo", group: "pull", sets: 3, reps: "12", load_kg: null },
-  { id: "pl7", name: "Rosca de Punho (sábado)", group: "pull", sets: 3, reps: "15", load_kg: null },
+  { id: "pl1", name: "Puxada Frontal / Barra Fixa", group: "pull", sets: 4, reps: "8-12", load_kg: null, days: [2, 6] },
+  { id: "pl2", name: "Remada Sentada no Cabo", group: "pull", sets: 3, reps: "10-12", load_kg: null, days: [2, 6] },
+  { id: "pl3", name: "Remada Unilateral com Halter", group: "pull", sets: 3, reps: "10-12", load_kg: null, days: [2, 6] },
+  { id: "pl4", name: "Face Pull", group: "pull", sets: 3, reps: "15", load_kg: null, days: [2, 6] },
+  { id: "pl5", name: "Rosca Direta (Barra EZ)", group: "pull", sets: 4, reps: "10-12", load_kg: null, days: [2, 6] },
+  { id: "pl6", name: "Rosca Martelo", group: "pull", sets: 3, reps: "12", load_kg: null, days: [2, 6] },
+  { id: "pl7", name: "Rosca de Punho (sábado)", group: "pull", sets: 3, reps: "15", load_kg: null, days: [6] },
   // LEGS
-  { id: "l1", name: "Leg Press 45°", group: "legs", sets: 4, reps: "10-12", load_kg: null },
-  { id: "l2", name: "Agachamento Livre", group: "legs", sets: 4, reps: "8-10", load_kg: null },
-  { id: "l3", name: "Cadeira Extensora", group: "legs", sets: 3, reps: "12-15", load_kg: null },
-  { id: "l4", name: "Levantamento Terra Romeno", group: "legs", sets: 4, reps: "10-12", load_kg: null },
-  { id: "l5", name: "Mesa Flexora", group: "legs", sets: 3, reps: "12-15", load_kg: null },
-  { id: "l6", name: "Panturrilha em Pé (Máquina)", group: "legs", sets: 4, reps: "15-20", load_kg: null },
+  { id: "l1", name: "Leg Press 45°", group: "legs", sets: 4, reps: "10-12", load_kg: null, days: [3] },
+  { id: "l2", name: "Agachamento Livre", group: "legs", sets: 4, reps: "8-10", load_kg: null, days: [3] },
+  { id: "l3", name: "Cadeira Extensora", group: "legs", sets: 3, reps: "12-15", load_kg: null, days: [3] },
+  { id: "l4", name: "Levantamento Terra Romeno", group: "legs", sets: 4, reps: "10-12", load_kg: null, days: [3] },
+  { id: "l5", name: "Mesa Flexora", group: "legs", sets: 3, reps: "12-15", load_kg: null, days: [3] },
+  { id: "l6", name: "Panturrilha em Pé (Máquina)", group: "legs", sets: 4, reps: "15-20", load_kg: null, days: [3] },
 ];
 
 // per 100g
@@ -79,3 +79,22 @@ export const GROUP_LABEL: Record<"push" | "pull" | "legs" | "rest", string> = {
   legs: "Legs (Pernas)",
   rest: "Descanso",
 };
+
+// Dias de treino da semana (derivados do WEEK_PLAN), com rótulos prontos.
+export interface TrainingDay {
+  dow: number;                       // 0=Dom … 6=Sáb
+  short: string;
+  label: string;
+  group: "push" | "pull" | "legs";
+  focus: string;
+}
+export const TRAINING_DAYS: TrainingDay[] = [
+  { dow: 1, short: "Seg", label: "Segunda", group: "push", focus: "Peito • Ombros • Tríceps" },
+  { dow: 2, short: "Ter", label: "Terça",   group: "pull", focus: "Costas • Bíceps" },
+  { dow: 3, short: "Qua", label: "Quarta",  group: "legs", focus: "Pernas • Panturrilha" },
+  { dow: 5, short: "Sex", label: "Sexta",   group: "push", focus: "Peito • Ombros • Tríceps" },
+  { dow: 6, short: "Sáb", label: "Sábado",  group: "pull", focus: "Costas • Bíceps • Antebraço" },
+];
+export function exercisesForDay(all: Exercise[], day: TrainingDay): Exercise[] {
+  return all.filter((e) => e.group === day.group && (!e.days || e.days.includes(day.dow)));
+}
