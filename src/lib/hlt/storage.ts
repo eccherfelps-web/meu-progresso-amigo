@@ -52,6 +52,7 @@ export function useLocalStorage<T>(key: string, initial: T) {
 }
 
 export function exportAll(): string {
+  if (typeof window === "undefined") return "{}";
   const out: Record<string, unknown> = {};
   for (const k of Object.values(KEYS)) {
     const raw = window.localStorage.getItem(k);
@@ -61,6 +62,7 @@ export function exportAll(): string {
 }
 
 export function importAll(json: string) {
+  if (typeof window === "undefined") return;
   const data = JSON.parse(json) as Record<string, unknown>;
   for (const [k, v] of Object.entries(data)) {
     window.localStorage.setItem(k, JSON.stringify(v));
@@ -68,5 +70,6 @@ export function importAll(json: string) {
 }
 
 export function resetAll() {
+  if (typeof window === "undefined") return;
   for (const k of Object.values(KEYS)) window.localStorage.removeItem(k);
 }

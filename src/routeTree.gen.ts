@@ -48,9 +48,9 @@ const TreinoIndexRoute = TreinoIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const TreinoAtivoRoute = TreinoAtivoRouteImport.update({
-  id: '/ativo',
-  path: '/ativo',
-  getParentRoute: () => TreinoRoute,
+  id: '/treino/ativo',
+  path: '/treino/ativo',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -117,6 +117,7 @@ export interface RootRouteChildren {
   NutricaoRoute: typeof NutricaoRoute
   PerfilRoute: typeof PerfilRoute
   PesoRoute: typeof PesoRoute
+  TreinoAtivoRoute: typeof TreinoAtivoRoute
   TreinoIndexRoute: typeof TreinoIndexRoute
 }
 
@@ -166,10 +167,10 @@ declare module '@tanstack/react-router' {
     }
     '/treino/ativo': {
       id: '/treino/ativo'
-      path: '/ativo'
+      path: '/treino/ativo'
       fullPath: '/treino/ativo'
       preLoaderRoute: typeof TreinoAtivoRouteImport
-      parentRoute: typeof TreinoRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -180,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   NutricaoRoute: NutricaoRoute,
   PerfilRoute: PerfilRoute,
   PesoRoute: PesoRoute,
+  TreinoAtivoRoute: TreinoAtivoRoute,
   TreinoIndexRoute: TreinoIndexRoute,
 }
 export const routeTree = rootRouteImport
