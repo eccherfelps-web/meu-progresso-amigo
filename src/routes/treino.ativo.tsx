@@ -33,9 +33,23 @@ function TreinoAtivo() {
   const [warmupLeft, setWarmupLeft] = useState(300);
   const [startedAt] = useState(Date.now());
   const [exIdx, setExIdx] = useState(0);
-  const [logs, setLogs] = useState<SessionExercise[]>(
-    list.map((e) => ({ exercise_id: e.id, name: e.name, group: e.group, sets: [] })),
-  );
+  // Fila de exercícios (permite pular p/ o fim) + logs POR ID — as séries e
+  // cargas ficam presas ao exercício, não à posição, então nada se perde.
+  // Também corrige a corrida: antes os logs nasciam dos exercícios padrão,
+  // antes dos personalizados carregarem do banco.
+  const [order, setOrder] = useState<string[]>([]);
+  const [logs, setLogs] = useState<Record<string, SessionExercise>>({});
+  useEffect(() => {
+    const ids = list.map((e) => e.id);
+    const anySets = Object.values(logs).some((l) => l.sets.length > 0);
+    const sameIds = order.length === ids.length && order.every((id) => ids.includes(id));
+    if (!anySets && !sameIds && ids.length) {
+      setOrder(ids);
+      setLogs(Object.fromEntries(list.map((e) => [e.id, { exercise_id: e.id, name: e.name, group: e.group, sets: [] }])));
+      setExIdx(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list]);
   const [setInput, setSetInput] = useState({ weight: "", reps: "" });
   const [restLeft, setRestLeft] = useState(0);
   const [restPick, setRestPick] = useState(90);
@@ -71,18 +85,11 @@ function TreinoAtivo() {
     };
   }, [restLeft]);
 
-  if (list.length === 0) {
-    return (
-      <div className="p-6">
-        <Card>Nenhum exercício neste grupo. Adicione exercícios em <strong>/treino</strong>.</Card>
-      </div>
-    );
-  }
-
-  const current = list[exIdx];
-  const currentLog = logs[exIdx];
+  const byId = useMemo(() => new Map(list.map((e) => [e.id, e])), [list]);
+  const current = order.length ? byId.get(order[Math.min(exIdx, order.length - 1)]) : undefined;
+  const currentLog = current ? logs[current.id] : undefined;
   const totalSets = list.reduce((a, e) => a + e.sets, 0);
-  const doneSets = logs.reduce((a, l) => a + l.sets.length, 0);
+  const doneSets = Object.values(logs).reduce((a, l) => a + l.sets.length, 0);
   const progressPct = Math.round((doneSets * 100) / totalSets);
 
   // Past PR lookups from previous sessions
@@ -96,14 +103,24 @@ function TreinoAtivo() {
     return { bestW, bestR };
   }
   const lastUse = useMemo(() => {
+    if (!current) return null;
     for (let i = sessions.length - 1; i >= 0; i--) {
       const ex = sessions[i].exercises.find((x) => x.exercise_id === current.id);
       if (ex && ex.sets.length) return ex.sets[ex.sets.length - 1];
     }
     return null;
-  }, [sessions, current.id]);
+  }, [sessions, current]);
+
+  if (list.length === 0) {
+    return (
+      <div className="p-6">
+        <Card>Nenhum exercício neste grupo. Adicione exercícios em <strong>/treino</strong>.</Card>
+      </div>
+    );
+  }
 
   const completeSet = () => {
+    if (!current || !currentLog) return;
     const w = parseFloat(setInput.weight) || current.load_kg || 0;
     const r = parseInt(setInput.reps) || 0;
     if (!r) { toast.error("Informe as reps"); return; }
@@ -114,19 +131,39 @@ function TreinoAtivo() {
     if (r > past.bestR && past.bestR > 0) newPrs.push({ exercise: current.name, type: "reps", value: r });
     setPrs(newPrs);
     if (newPrs.length > prs.length) toast.success("🏆 Novo recorde pessoal!");
-    setLogs((prev) => prev.map((l, i) => (i === exIdx ? { ...l, sets: [...l.sets, newSet] } : l)));
+    setLogs((prev) => ({ ...prev, [current.id]: { ...prev[current.id], sets: [...prev[current.id].sets, newSet] } }));
     setSetInput({ weight: String(w), reps: "" });
     setRestLeft(restPick);
   };
 
   const nextExercise = () => {
-    if (exIdx < list.length - 1) {
+    if (exIdx < order.length - 1) {
       setExIdx((i) => i + 1);
       setSetInput({ weight: "", reps: "" });
       setRestLeft(0);
     } else {
       setPhase("done");
     }
+  };
+
+  // NOVO: pular exercício (equipamento ocupado) — move para o fim da fila
+  // sem perder nenhuma série/carga já registrada.
+  const skipExercise = () => {
+    if (!current) return;
+    if (exIdx >= order.length - 1) {
+      toast.info("Este é o último exercício — não há próximo para pular.");
+      return;
+    }
+    const skipped = current.name;
+    setOrder((prev) => {
+      const next = [...prev];
+      const [id] = next.splice(exIdx, 1);
+      next.push(id);
+      return next;
+    });
+    setSetInput({ weight: "", reps: "" });
+    setRestLeft(0);
+    toast.info(`"${skipped}" foi para o fim da fila — séries registradas mantidas.`);
   };
 
   const finishWorkout = () => {
@@ -136,7 +173,7 @@ function TreinoAtivo() {
       date: new Date().toISOString(),
       type: type as MuscleGroup,
       duration_min: duration,
-      exercises: logs.filter((l) => l.sets.length > 0),
+      exercises: order.map((id) => logs[id]).filter((l) => l && l.sets.length > 0),
       prs,
     };
     setSessions((prev) => [...prev, session]);
@@ -165,7 +202,7 @@ function TreinoAtivo() {
   }
 
   if (phase === "done") {
-    const totalVolume = logs.reduce(
+    const totalVolume = Object.values(logs).reduce(
       (a, l) => a + l.sets.reduce((b, s) => b + s.weight_kg * s.reps, 0),
       0,
     );
@@ -196,6 +233,10 @@ function TreinoAtivo() {
     );
   }
 
+  if (!current || !currentLog) {
+    return <div className="p-6"><Card>Preparando o treino…</Card></div>;
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-2xl mx-auto">
       <div className="mb-4">
@@ -209,7 +250,7 @@ function TreinoAtivo() {
       </div>
 
       <Card className="mb-4">
-        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Exercício {exIdx + 1} / {list.length}</div>
+        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Exercício {exIdx + 1} / {order.length}</div>
         <div className="text-xl font-bold">{current.name}</div>
         <div className="text-xs text-muted-foreground">Meta: {current.sets} × {current.reps}</div>
         {lastUse && <div className="text-xs text-info mt-1">Última vez: {lastUse.weight_kg}kg × {lastUse.reps}</div>}
@@ -253,9 +294,14 @@ function TreinoAtivo() {
         </div>
       </Card>
 
-      <Button onClick={nextExercise} variant="outline" className="w-full">
-        {exIdx < list.length - 1 ? "Próximo exercício →" : "Finalizar treino"}
-      </Button>
+      <div className="flex gap-2">
+        <Button onClick={skipExercise} variant="outline" className="flex-1" disabled={exIdx >= order.length - 1}>
+          <SkipForward className="size-4 mr-1" /> Pular exercício
+        </Button>
+        <Button onClick={nextExercise} className="flex-1">
+          {exIdx < order.length - 1 ? "Próximo exercício →" : "Finalizar treino"}
+        </Button>
+      </div>
     </div>
   );
 }

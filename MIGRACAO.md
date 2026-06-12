@@ -81,3 +81,41 @@ build completo (cliente + SSR) passando.
    linhas só aparecem depois que você abrir o app (com este código publicado)
    e ele fizer o primeiro push. Registre algo, aguarde ~5 s e recarregue o
    Table Editor.
+
+---
+
+# v1.3 — Correções críticas + recursos de análise
+
+**1. Perfil (bug crítico corrigido).** O formulário era preenchido com os
+valores padrão ANTES dos dados salvos carregarem do banco e nunca era
+re-semeado — a página exibia os padrões e, ao salvar, sobrescrevia os dados
+reais. Agora o formulário é semeado após a hidratação e o botão Salvar fica
+bloqueado até os dados carregarem. Nutrição e Dashboard recalculam na hora
+(eles derivam tudo do perfil a cada render — o problema era só a persistência).
+
+**2. Open Food Facts.** A busca agora usa dois endpoints em cadeia (o novo
+Search-a-licious e o legado), com timeout de 9 s, tratamento do limite de
+~10 buscas/min e mensagens de erro específicas (sem conexão / lento / limite).
+
+**3. Pular Exercício (novo).** No treino ativo, o botão "Pular exercício"
+move o exercício atual para o fim da fila — séries e cargas registradas são
+preservadas (os logs agora são presos ao exercício, não à posição). De
+quebra, corrigiu-se outra corrida: os logs nasciam dos exercícios padrão
+antes dos personalizados carregarem.
+
+**4. Equilíbrio Muscular (novo).** Score 0–100% com barra colorida, 4 pares
+antagonistas (Peito×Costas, Quadríceps×Posterior, Bíceps×Tríceps,
+Empurrar×Puxar) com razão ideal e sugestões automáticas de ajuste.
+
+**5. Volume por Músculo (novo).** 10 músculos (Peito, Costas, Ombros, Bíceps,
+Tríceps, Antebraço, Quadríceps, Posterior, Panturrilha, Abdômen) com séries
+semanais, volume total e % do treino, em barras. O gráfico de volume semanal
+ganhou os percentuais por grupo (Push/Pull/Legs).
+
+**6. Peso × Calorias modernizado.** Gradientes, linhas suavizadas, média
+móvel de 7 dias, chip de tendência (kg/semana por regressão), linha de meta
+calórica e tooltip/legenda refinados — legível no celular e no desktop.
+
+**Validação:** classificador muscular 21/21 casos + todos os 20 exercícios do
+plano padrão classificados; percentuais somando 100%; desequilíbrio 4:1
+detectado com sugestão correta; TypeScript limpo; build completo passando.

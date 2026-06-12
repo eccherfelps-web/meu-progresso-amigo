@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, PageHeader } from "@/components/hlt/Shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,10 +20,22 @@ export const Route = createFileRoute("/perfil")({
 });
 
 function PerfilPage() {
-  const [profile, setProfile] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
+  const [profile, setProfile, hydrated] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
   const [form, setForm] = useState<Profile>(profile);
 
+  // CORREÇÃO CRÍTICA: o formulário era preenchido com os padrões ANTES dos
+  // dados salvos carregarem do banco e nunca era re-semeado — a página exibia
+  // os padrões e, ao salvar, sobrescrevia os dados reais do usuário.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (hydrated && !seeded.current) {
+      setForm(profile);
+      seeded.current = true;
+    }
+  }, [hydrated, profile]);
+
   const save = () => {
+    if (!hydrated) return;
     setProfile(form);
     toast.success("Metas atualizadas!");
   };
@@ -69,7 +81,7 @@ function PerfilPage() {
         <div className="rounded-lg bg-muted/50 p-3 text-xs">
           <strong>Pré-visualização:</strong> TDEE {tdee(form)} kcal · Meta {macros.kcal} kcal · P {macros.protein_g}g · C {macros.carbs_g}g · G {macros.fat_g}g
         </div>
-        <Button onClick={save} className="w-full">Salvar e recalcular</Button>
+        <Button onClick={save} className="w-full" disabled={!hydrated}>{hydrated ? "Salvar e recalcular" : "Carregando dados salvos…"}</Button>
       </Card>
 
       <Card className="mb-4 flex items-center justify-between">
@@ -77,7 +89,7 @@ function PerfilPage() {
           <div className="font-semibold">Tema escuro</div>
           <div className="text-xs text-muted-foreground">Alternar entre claro e escuro</div>
         </div>
-        <Switch checked={form.theme !== "light"} onCheckedChange={(c) => { const t = c ? "dark" : "light"; setForm({ ...form, theme: t }); setProfile({ ...form, theme: t }); }} />
+        <Switch disabled={!hydrated} checked={form.theme !== "light"} onCheckedChange={(c) => { const t = c ? "dark" : "light"; setForm({ ...form, theme: t }); setProfile({ ...form, theme: t }); }} />
       </Card>
 
       <Card className="mb-4 space-y-2">
