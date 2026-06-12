@@ -37,15 +37,22 @@ export function Shell({ children }: { children: React.ReactNode }) {
       const fresh = await checkAchievements();
       for (const a of fresh) toast.success(`${a.icon} Conquista desbloqueada: ${a.name}!`);
     }, 1500);
-    return () => { off(); clearTimeout(t); };
+    return () => {
+      off();
+      clearTimeout(t);
+    };
   }, []);
 
   const syncLabel =
-    sync === "syncing" ? { icon: Cloud, txt: "sincronizando…" } :
-    sync === "idle"    ? { icon: Cloud, txt: "nuvem ok" } :
-    sync === "error"   ? { icon: CloudOff, txt: "erro de sync" } :
-    sync === "offline" ? { icon: CloudOff, txt: "offline" } :
-                         { icon: CloudOff, txt: "local" };
+    sync === "syncing"
+      ? { icon: Cloud, txt: "sincronizando…" }
+      : sync === "idle"
+        ? { icon: Cloud, txt: "nuvem ok" }
+        : sync === "error"
+          ? { icon: CloudOff, txt: "erro de sync" }
+          : sync === "offline"
+            ? { icon: CloudOff, txt: "offline" }
+            : { icon: CloudOff, txt: "local" };
 
   return (
     <div className="min-h-screen flex w-full bg-background text-foreground">
@@ -62,7 +69,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
               key={n.to}
               to={n.to}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
-                active ? "bg-primary/15 text-primary font-semibold" : "hover:bg-accent text-foreground/80"
+                active
+                  ? "bg-primary/15 text-primary font-semibold"
+                  : "hover:bg-accent text-foreground/80"
               }`}
             >
               <n.icon className="size-4" />
@@ -101,7 +110,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="flex items-end justify-between gap-4 mb-6">
       <div>
@@ -113,6 +130,14 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
   );
 }
 
-export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-border bg-card p-4 ${className}`}>{children}</div>;
+export function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-xl border border-border bg-card p-4 ${className}`}>{children}</div>
+  );
 }

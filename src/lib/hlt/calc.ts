@@ -13,11 +13,16 @@ export function bmr(p: Profile): number {
 
 export function activityFactor(level: Profile["activity_level"]): number {
   switch (level) {
-    case "sedentary": return 1.2;
-    case "light": return 1.375;
-    case "moderate": return 1.55;
-    case "active": return 1.725;
-    case "very_active": return 1.725;
+    case "sedentary":
+      return 1.2;
+    case "light":
+      return 1.375;
+    case "moderate":
+      return 1.55;
+    case "active":
+      return 1.725;
+    case "very_active":
+      return 1.725;
   }
 }
 
@@ -27,7 +32,8 @@ export function tdee(p: Profile): number {
 
 export function dailyMacros(p: Profile, isRestDay = false): Macros {
   const base = tdee(p);
-  const surplus = p.goal_type === "clean_bulk" ? (isRestDay ? 0 : 300) : p.goal_type === "cut" ? -400 : 0;
+  const surplus =
+    p.goal_type === "clean_bulk" ? (isRestDay ? 0 : 300) : p.goal_type === "cut" ? -400 : 0;
   const kcal = base + surplus;
   const protein_g = Math.round(2.2 * p.weight_current_kg);
   const fat_g = p.fat_daily_limit_g;

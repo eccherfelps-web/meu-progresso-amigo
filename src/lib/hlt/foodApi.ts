@@ -2,6 +2,7 @@
 // Usa dois endpoints em cadeia (o novo Search-a-licious e o legado cgi),
 // porque o legado é lento e tem limite de ~10 buscas/min.
 import type { FoodDb } from "./types";
+import { kvGetRow, kvWrite } from "./db";
 
 const TIMEOUT = 9000;
 
@@ -22,10 +23,15 @@ const num = (v: unknown) => (v == null || isNaN(Number(v)) ? null : +Number(v).t
 
 function toFood(p: Record<string, unknown>): FoodDb | null {
   const n = (p.nutriments ?? {}) as Record<string, unknown>;
-  const kcal = num(n["energy-kcal_100g"]) ?? (num(n["energy_100g"]) != null ? +(Number(n["energy_100g"]) / 4.184).toFixed(0) : null);
+  const kcal =
+    num(n["energy-kcal_100g"]) ??
+    (num(n["energy_100g"]) != null ? +(Number(n["energy_100g"]) / 4.184).toFixed(0) : null);
   const name = (p.product_name_pt || p.product_name) as string | undefined;
   if (!name || kcal == null) return null;
-  const brand = typeof p.brands === "string" && p.brands ? ` (${(p.brands as string).split(",")[0].trim()})` : "";
+  const brand =
+    typeof p.brands === "string" && p.brands
+      ? ` (${(p.brands as string).split(",")[0].trim()})`
+      : "";
   return {
     name: `${name}${brand}`,
     kcal,
@@ -33,6 +39,44 @@ function toFood(p: Record<string, unknown>): FoodDb | null {
     carbs_g: num(n["carbohydrates_100g"]) ?? 0,
     fat_g: num(n["fat_100g"]) ?? 0,
   };
+}
+
+// ── cache local de buscas (reduz requisições e acelera repetições) ──
+const CACHE_KEY = "hlt_food_cache";
+const CACHE_TTL = 24 * 3600 * 1000;
+type CacheMap = Record<string, { at: number; foods: FoodDb[] }>;
+
+async function readCache(): Promise<CacheMap> {
+  const row = await kvGetRow(CACHE_KEY);
+  return (row?.value as CacheMap) ?? {};
+}
+async function writeCache(map: CacheMap) {
+  // mantém só as 80 buscas mais recentes; clean=true → não sobe para a nuvem
+  const entries = Object.entries(map)
+    .sort((a, b) => b[1].at - a[1].at)
+    .slice(0, 80);
+  await kvWrite(CACHE_KEY, Object.fromEntries(entries), { clean: true });
+}
+
+export interface FoodSearchResult {
+  foods: FoodDb[];
+  fromCache: boolean;
+}
+
+/** Busca com cache: instantânea quando a consulta já foi feita nas últimas 24 h. */
+export async function searchFoodsOnline(query: string): Promise<FoodSearchResult> {
+  const key = query.trim().toLowerCase();
+  const cache = await readCache();
+  const hit = cache[key];
+  if (hit && Date.now() - hit.at < CACHE_TTL && hit.foods.length) {
+    return { foods: hit.foods, fromCache: true };
+  }
+  const foods = await searchOpenFoodFacts(query);
+  if (foods.length) {
+    cache[key] = { at: Date.now(), foods };
+    await writeCache(cache);
+  }
+  return { foods, fromCache: false };
 }
 
 export async function searchOpenFoodFacts(query: string): Promise<FoodDb[]> {
@@ -57,7 +101,9 @@ export async function searchOpenFoodFacts(query: string): Promise<FoodDb[]> {
     } catch (e) {
       lastErr = e instanceof Error ? e : new Error(String(e));
       if (lastErr.message === "rate") {
-        throw new Error("Limite de buscas da Open Food Facts atingido — aguarde ~1 minuto e tente de novo.");
+        throw new Error(
+          "Limite de buscas da Open Food Facts atingido — aguarde ~1 minuto e tente de novo.",
+        );
       }
     }
   }

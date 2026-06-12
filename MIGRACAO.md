@@ -119,3 +119,67 @@ calórica e tooltip/legenda refinados — legível no celular e no desktop.
 **Validação:** classificador muscular 21/21 casos + todos os 20 exercícios do
 plano padrão classificados; percentuais somando 100%; desequilíbrio 4:1
 detectado com sugestão correta; TypeScript limpo; build completo passando.
+
+---
+
+# v1.4 — Nutrição robusta, cadastro completo e semana flexível
+
+**3. Busca nutricional (estratégia híbrida).** Em vez de depender de uma API
+instável: (a) tabela **TACO embutida com 68 alimentos brasileiros** — busca
+instantânea e offline, é a primeira camada; (b) **cache local de 24 h** das
+buscas online (até 80 consultas guardadas — repetir uma busca não vai à
+internet); (c) Open Food Facts continua como complemento, com os dois
+endpoints e mensagens de erro específicas. Feedback visual: spinner durante a
+busca, aviso "⚡ resultado do cache" e mensagem clara quando nada é encontrado.
+
+**4. Adicionar exercício (reestruturado).** O prompt() virou um formulário
+completo: nome com **busca inteligente no catálogo** (38 exercícios com
+auto-preenchimento de grupo/músculo/equipamento), chips de **recentes**,
+músculo principal* e secundário, séries*, repetições*, carga com **kg/lb**
+(converte), descanso*, tipo (composto/isolado), equipamento e observações.
+Validações bloqueiam séries/reps vazias, carga inválida e músculo ausente.
+
+**5. Edição completa.** O lápis agora abre o mesmo formulário com tudo
+editável. Como gráficos e estatísticas derivam dos dados reativamente, tudo
+atualiza na hora, sem recarregar.
+
+**6. Exclusão com Desfazer.** Ao excluir: toast "removido — Desfazer?" por
+6 segundos restaura o exercício intacto.
+
+**7. Semana flexível (drag-and-drop).** Botão "Reorganizar semana" abre os 7
+dias: arraste um sobre o outro (ou toque em dois) para trocá-los — ex.: Leg
+na terça e Pull na quarta. Os exercícios seguem o grupo automaticamente
+(incluindo os fixados num dia específico, via "ocorrência do grupo"), e
+histórico/estatísticas ficam intactos. Dashboard e treino ativo respeitam o
+cronograma novo. "Restaurar padrão" volta ao PPL original.
+
+**8–9. Gráfico de volume e análises.** Bucketização semanal corrigida (antes
+misturava meses), barras empilhadas das últimas 8 semanas com **tooltip
+detalhado** (kg + % por grupo + total), chip de **comparação vs semana
+anterior** (total e por grupo), destaque 🏆 para o grupo mais treinado e ⚠
+para negligenciados (<15%). No volume por músculo, cada músculo ganhou o
+indicador da **faixa recomendada de 10–20 séries/semana** (amarelo abaixo,
+verde na faixa, azul acima).
+
+**Validação:** cronograma com troca Ter⇄Qua testado (exemplo da spec), slot
+do 2º dia de pull seguindo a reorganização, catálogo e TACO com macros
+coerentes, TypeScript limpo, build completo passando.
+
+---
+
+# v1.4.1 — Varredura completa pré-deploy
+
+Auditoria executada antes da publicação:
+- **ESLint do projeto**: 536 apontamentos de formatação corrigidos automaticamente → 0 problemas.
+- **Teste da camada de dados com IndexedDB simulado (5/5)**: migração do
+  localStorage com dirty=1; salvar→reler retorna o valor novo (cenário do bug
+  do perfil); fila de sync correta com cache excluído e markClean; LWW não
+  deixa timestamp antigo da nuvem vencer; reset definitivo sem reimportação.
+- **Correções da revisão manual**: (a) trocar o grupo no formulário agora
+  recalcula as opções de "dia do grupo" e um slot inválido nunca esconde o
+  exercício (clamp duplo, no efeito e no salvar); (b) conquistas passam a ser
+  verificadas também ao finalizar o treino, com toast imediato; (c) a dica de
+  gordura no Analytics usa o limite configurado no perfil, não 50 g fixo;
+  (d) removido import duplicado.
+- TypeScript: 0 erros · Build completo (cliente + SSR): ok · Lógica de
+  cronograma/slots revalidada após o autofix.

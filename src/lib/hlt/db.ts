@@ -8,13 +8,13 @@ export interface KvRow {
   key: string;
   value: unknown;
   updated_at: string; // ISO
-  dirty: number;      // 1 = ainda não subiu para o servidor
+  dirty: number; // 1 = ainda não subiu para o servidor
 }
 export interface PhotoRow {
   id: string;
-  date: string;                                // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
   angle: "frontal" | "lateral" | "traseira";
-  dataUrl: string;                             // imagem comprimida
+  dataUrl: string; // imagem comprimida
   created_at: string;
 }
 
@@ -36,8 +36,14 @@ export function getDb(): HltDb | null {
 
 // ── migração única: localStorage (app antigo) → IndexedDB ──
 const LEGACY_KEYS = [
-  "hlt_profile", "hlt_exercises", "hlt_workout_sessions", "hlt_weight_logs",
-  "hlt_food_logs", "hlt_hydration_logs", "hlt_assessment", "hlt_body_measures",
+  "hlt_profile",
+  "hlt_exercises",
+  "hlt_workout_sessions",
+  "hlt_weight_logs",
+  "hlt_food_logs",
+  "hlt_hydration_logs",
+  "hlt_assessment",
+  "hlt_body_measures",
 ];
 let migration: Promise<void> | null = null;
 export function ensureMigrated(): Promise<void> {
@@ -54,7 +60,9 @@ export function ensureMigrated(): Promise<void> {
           if (raw != null) {
             await db.kv.put({ key: k, value: JSON.parse(raw), updated_at: now, dirty: 1 });
           }
-        } catch { /* valor corrompido: ignora */ }
+        } catch {
+          /* valor corrompido: ignora */
+        }
       }
       await db.kv.put({ key: "__migrated", value: true, updated_at: now, dirty: 0 });
       // os dados antigos permanecem no localStorage como cópia de segurança
@@ -69,12 +77,17 @@ export async function kvGetRow(key: string): Promise<KvRow | undefined> {
   await ensureMigrated();
   return db.kv.get(key);
 }
-export async function kvWrite(key: string, value: unknown, opts?: { clean?: boolean; updated_at?: string }) {
+export async function kvWrite(
+  key: string,
+  value: unknown,
+  opts?: { clean?: boolean; updated_at?: string },
+) {
   const db = getDb();
   if (!db) return;
   await ensureMigrated();
   await db.kv.put({
-    key, value,
+    key,
+    value,
     updated_at: opts?.updated_at ?? new Date().toISOString(),
     dirty: opts?.clean ? 0 : 1,
   });
@@ -111,6 +124,11 @@ export async function kvReset() {
   await db.photos.clear();
   for (const k of LEGACY_KEYS) window.localStorage.removeItem(k);
   // impede que a migração reimporte dados antigos
-  await db.kv.put({ key: "__migrated", value: true, updated_at: new Date().toISOString(), dirty: 0 });
+  await db.kv.put({
+    key: "__migrated",
+    value: true,
+    updated_at: new Date().toISOString(),
+    dirty: 0,
+  });
   migration = Promise.resolve();
 }

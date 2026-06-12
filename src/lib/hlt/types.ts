@@ -24,10 +24,23 @@ export interface Exercise {
   reps: string;
   load_kg?: number | null;
   notes?: string;
-  /** Dias da semana em que o exercício aparece (0=Dom … 6=Sáb).
-   *  Ausente = todos os dias de treino do grupo. */
+  /** (legado) dias fixos da semana — substituído por `slot`. */
   days?: number[];
+  /** Em qual ocorrência do grupo na semana o exercício aparece
+   *  (0 = 1º dia do grupo, 1 = 2º dia). Ausente = todos. */
+  slot?: number;
+  /** Músculo principal/secundário (ex.: "Peito", "Tríceps"). */
+  muscle?: string;
+  muscle2?: string;
+  /** Descanso sugerido entre séries (segundos). */
+  rest_s?: number;
+  kind?: "composto" | "isolado";
+  equipment?: string;
+  fav?: boolean;
 }
+
+/** Cronograma semanal editável: índice 0=Dom … 6=Sáb. */
+export type WeekSchedule = ("push" | "pull" | "legs" | "rest")[];
 
 export interface WorkoutSet {
   weight_kg: number;

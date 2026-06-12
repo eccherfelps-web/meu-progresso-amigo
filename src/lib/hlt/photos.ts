@@ -2,7 +2,8 @@
 // no IndexedDB. Upload para bucket na nuvem entra na Fase 2 (com contas).
 import { getDb, type PhotoRow } from "./db";
 
-const MAX_DIM = 1000, QUALITY = 0.82;
+const MAX_DIM = 1000,
+  QUALITY = 0.82;
 
 async function compress(file: File): Promise<string> {
   const url = URL.createObjectURL(file);

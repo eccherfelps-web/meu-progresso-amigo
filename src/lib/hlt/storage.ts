@@ -16,17 +16,22 @@ export const KEYS = {
   assessment: "hlt_assessment",
   measures: "hlt_body_measures",
   achievements: "hlt_achievements",
+  schedule: "hlt_week_schedule",
 } as const;
 
 // cache compartilhado: componentes diferentes lendo a mesma chave
 // permanecem em sincronia (melhoria sobre a versão anterior)
 const cache = new Map<string, unknown>();
 const subs = new Map<string, Set<() => void>>();
-function notify(key: string) { subs.get(key)?.forEach((fn) => fn()); }
+function notify(key: string) {
+  subs.get(key)?.forEach((fn) => fn());
+}
 function subscribe(key: string, fn: () => void) {
   if (!subs.has(key)) subs.set(key, new Set());
   subs.get(key)!.add(fn);
-  return () => { subs.get(key)!.delete(fn); };
+  return () => {
+    subs.get(key)!.delete(fn);
+  };
 }
 
 async function ensureLoaded<T>(key: string, fallback: T): Promise<void> {
@@ -59,15 +64,27 @@ export function useLocalStorage<T>(key: string, initial: T) {
 
   useEffect(() => {
     let alive = true;
-    const pull = () => { if (alive && cache.has(key)) setValue(cache.get(key) as T); };
+    const pull = () => {
+      if (alive && cache.has(key)) setValue(cache.get(key) as T);
+    };
     const unsub = subscribe(key, pull);
-    void ensureLoaded(key, initial).then(() => { if (alive) { pull(); setHydrated(true); } });
-    return () => { alive = false; unsub(); };
+    void ensureLoaded(key, initial).then(() => {
+      if (alive) {
+        pull();
+        setHydrated(true);
+      }
+    });
+    return () => {
+      alive = false;
+      unsub();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   const update = useCallback(
-    (v: T | ((prev: T) => T)) => { writeStore<T>(key, v, initial); },
+    (v: T | ((prev: T) => T)) => {
+      writeStore<T>(key, v, initial);
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [key],
   );
@@ -83,6 +100,7 @@ export async function importAll(json: string) {
   const data = JSON.parse(json) as Record<string, unknown>;
   for (const [k, v] of Object.entries(data)) {
     if (!k.startsWith("hlt_")) continue;
+    if (k === "hlt_food_cache") continue; // cache local não vai para a nuvem
     await kvWrite(k, v); // dirty=1 → sobe para a nuvem também
     cache.set(k, v);
     notify(k);

@@ -14,12 +14,15 @@ export function getSupabase(): SupabaseClient | null {
   if (client !== undefined) return client;
   const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || DEFAULT_URL;
   const key =
-    ((import.meta.env.VITE_SUPABASE_ANON_KEY ??
-      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as string | undefined) || DEFAULT_ANON_KEY;
+    ((import.meta.env.VITE_SUPABASE_ANON_KEY ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as
+      | string
+      | undefined) || DEFAULT_ANON_KEY;
   client = url && key ? createClient(url, key) : null;
   return client;
 }
-export function remoteEnabled(): boolean { return getSupabase() !== null; }
+export function remoteEnabled(): boolean {
+  return getSupabase() !== null;
+}
 
 // Namespace fixo do usuário: todos os aparelhos do Felps leem/escrevem o
 // mesmo conjunto de chaves → sincronização real entre celular e PC.
