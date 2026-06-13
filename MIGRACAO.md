@@ -215,3 +215,31 @@ brasileiros — o filtro agora usa só marcadores exclusivos do espanhol
 
 **Validação:** ESLint 0 · TypeScript 0 · build completo ok · filtro de idioma
 5 PT mantidos / 5 ES removidos.
+
+---
+
+# v1.6 — Treino ativo repaginado (mobile first)
+
+**Hierarquia visual nova.** A tela foi reordenada para o essencial: exercício
+atual no topo (nome grande + meta + último desempenho), temporizador logo
+abaixo, série atual com inputs grandes (h-12, texto centralizado) e o botão
+gigante "✅ Concluir série" (h-14). Informações secundárias viraram chips
+compactos. Largura max-md no celular, sem rolagem para as ações principais.
+
+**Temporizador protagonista.** Ao concluir a série, o timer assume o centro:
+anel de progresso SVG animado, contagem em 4xl, destaque com ring colorido,
+pulso nos 5 segundos finais e verde ao terminar. Controles rápidos: pausar/
+continuar, reiniciar, +15s, +30s e pular. A contagem agora é por **timestamp**
+(endsAt), então continua exata mesmo com a aba em segundo plano — o modelo
+antigo de decremento por intervalo atrasava quando o navegador acelerava.
+
+**Alerta sonoro.** Novo sistema de som sintetizado via Web Audio (sem
+arquivos): 3 sons (Beep clássico, Sino, Digital), volume ajustável e botão
+"Testar som" — tudo em Perfil → "Alerta de fim do descanso" (liga/desliga).
+O áudio é destravado no toque em "Concluir série" (regra dos navegadores),
+toca em segundo plano, vibra no celular e troca o título da aba por
+"✅ Descanso concluído!". Preferências salvas no perfil (sincronizam).
+
+**Botões principais.** Concluir Série (h-14), Anterior/Pular/Próximo (h-12,
+três colunas, polegar-friendly) e Finalizar Treino sempre acessível no fim —
+com destaque quando é o último exercício.

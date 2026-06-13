@@ -12,6 +12,10 @@ export interface Profile {
   training_days_per_week: number;
   activity_level: ActivityLevel;
   theme?: "dark" | "light";
+  /** Alerta sonoro ao fim do descanso. */
+  rest_sound_enabled?: boolean; // padrão: true
+  rest_sound_type?: "beep" | "sino" | "digital";
+  rest_sound_volume?: number; // 0–1
 }
 
 export type MuscleGroup = "push" | "pull" | "legs";

@@ -16,6 +16,9 @@ import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
 import type { Profile } from "@/lib/hlt/types";
 import { dailyMacros, tdee } from "@/lib/hlt/calc";
 import { toast } from "sonner";
+import { Slider } from "@/components/ui/slider";
+import { playAlert, unlockAudio, SOUND_OPTIONS, type AlertSound } from "@/lib/hlt/sound";
+import { Volume2 } from "lucide-react";
 import { Download, Upload, Trash2, Cloud, RefreshCw } from "lucide-react";
 import { syncNow, onSyncState, getLastSyncError, type SyncState } from "@/lib/hlt/sync";
 import { remoteEnabled } from "@/lib/hlt/supabase";
@@ -216,6 +219,8 @@ function PerfilPage() {
         </div>
       </Card>
 
+      <SoundCard />
+
       <SyncCard />
 
       <Card>
@@ -277,6 +282,78 @@ function SyncCard() {
           <code> VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> no ambiente. Veja
           MIGRACAO.md.
         </div>
+      )}
+    </Card>
+  );
+}
+
+function SoundCard() {
+  const [profile, setProfile, hydrated] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
+  const enabled = profile.rest_sound_enabled !== false;
+  const type: AlertSound = profile.rest_sound_type ?? "beep";
+  const vol = profile.rest_sound_volume ?? 0.7;
+  const patch = (p: Partial<Profile>) => {
+    if (!hydrated) return;
+    setProfile({ ...profile, ...p });
+  };
+  return (
+    <Card className="mb-4 space-y-3">
+      <h3 className="font-semibold flex items-center gap-2">
+        <Volume2 className="size-4" /> Alerta de fim do descanso
+      </h3>
+      <div className="flex items-center justify-between">
+        <span className="text-sm">Som ao terminar o descanso</span>
+        <Switch
+          disabled={!hydrated}
+          checked={enabled}
+          onCheckedChange={(c) => patch({ rest_sound_enabled: c })}
+        />
+      </div>
+      {enabled && (
+        <>
+          <div className="grid grid-cols-2 gap-2 items-end">
+            <div>
+              <label className="text-[11px] text-muted-foreground block mb-1">Som</label>
+              <Select value={type} onValueChange={(v: AlertSound) => patch({ rest_sound_type: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SOUND_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                unlockAudio();
+                playAlert(type, vol);
+              }}
+            >
+              🔊 Testar som
+            </Button>
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground block mb-1">
+              Volume · {Math.round(vol * 100)}%
+            </label>
+            <Slider
+              value={[Math.round(vol * 100)]}
+              min={10}
+              max={100}
+              step={5}
+              onValueChange={([v]) => patch({ rest_sound_volume: v / 100 })}
+            />
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            O som funciona com a aba em segundo plano após o primeiro toque em "Concluir série"
+            (alguns celulares limitam áudio com a tela bloqueada).
+          </div>
+        </>
       )}
     </Card>
   );

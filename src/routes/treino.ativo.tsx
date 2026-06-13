@@ -16,7 +16,10 @@ import type {
 } from "@/lib/hlt/types";
 import { Trophy, Timer, Check, SkipForward } from "lucide-react";
 import { toast } from "sonner";
-import { Pencil, ChevronLeft } from "lucide-react";
+import { Pencil, ChevronLeft, Pause, Play, RotateCcw, BellRing } from "lucide-react";
+import { playAlert, unlockAudio } from "@/lib/hlt/sound";
+import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
+import type { Profile } from "@/lib/hlt/types";
 import { checkAchievements } from "@/lib/hlt/achievements";
 
 export const Route = createFileRoute("/treino/ativo")({
@@ -34,6 +37,7 @@ function TreinoAtivo() {
   const [exercises] = useLocalStorage<Exercise[]>(KEYS.exercises, DEFAULT_EXERCISES);
   const [sessions, setSessions] = useLocalStorage<WorkoutSession[]>(KEYS.sessions, []);
   const [schedule] = useLocalStorage<WeekSchedule>(KEYS.schedule, DEFAULT_SCHEDULE);
+  const [profile] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
   const dayInfo = useMemo(
     () => (day != null ? daysFromSchedule(schedule).find((d) => d.dow === day) : undefined),
     [schedule, day],
@@ -78,9 +82,15 @@ function TreinoAtivo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list]);
   const [setInput, setSetInput] = useState({ weight: "", reps: "" });
-  const [restLeft, setRestLeft] = useState(0);
+  // Descanso por timestamp (endsAt): a contagem continua correta mesmo se o
+  // navegador acelerar/atrasar o intervalo com a aba em segundo plano.
+  const [rest, setRest] = useState<{ endsAt: number; total: number; paused: number | null } | null>(
+    null,
+  );
+  const [restDone, setRestDone] = useState(false);
+  const [, setTick] = useState(0); // re-render do contador
   const [restPick, setRestPick] = useState(90);
-  const restRef = useRef<number | null>(null);
+  const restAlerted = useRef(false);
   const [prs, setPrs] = useState<{ exercise: string; type: "weight" | "reps"; value: number }[]>(
     [],
   );
@@ -92,33 +102,54 @@ function TreinoAtivo() {
     return () => clearInterval(id);
   }, [phase]);
 
-  // rest countdown
+  // contagem do descanso + alerta (som/vibração/título) ao terminar
   useEffect(() => {
-    if (restLeft <= 0) {
-      if (restRef.current) {
-        clearInterval(restRef.current);
-        restRef.current = null;
+    if (!rest || rest.paused != null) return;
+    const id = window.setInterval(() => {
+      setTick((t) => t + 1);
+      if (Date.now() >= rest.endsAt && !restAlerted.current) {
+        restAlerted.current = true;
+        if (profile.rest_sound_enabled !== false)
+          playAlert(profile.rest_sound_type ?? "beep", profile.rest_sound_volume ?? 0.7);
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        toast.success("✅ Descanso concluído — próxima série!");
+        const old = document.title;
+        document.title = "✅ Descanso concluído!";
+        setTimeout(() => (document.title = old), 5000);
+        setRest(null);
+        setRestDone(true);
       }
-      return;
-    }
-    if (restRef.current) return;
-    restRef.current = window.setInterval(() => {
-      setRestLeft((s) => {
-        if (s <= 1) {
-          if (navigator.vibrate) navigator.vibrate(200);
-          toast.success("Descanso concluído!");
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-    return () => {
-      if (restRef.current) {
-        clearInterval(restRef.current);
-        restRef.current = null;
-      }
-    };
-  }, [restLeft]);
+    }, 250);
+    return () => clearInterval(id);
+  }, [rest, profile.rest_sound_enabled, profile.rest_sound_type, profile.rest_sound_volume]);
+
+  const startRest = (sec: number) => {
+    restAlerted.current = false;
+    setRestDone(false);
+    setRest({ endsAt: Date.now() + sec * 1000, total: sec, paused: null });
+  };
+  const restRemaining = rest
+    ? Math.max(0, Math.ceil(((rest.paused ?? rest.endsAt - Date.now()) as number) / 1000))
+    : 0;
+  const pauseRest = () =>
+    setRest((r) => (r && r.paused == null ? { ...r, paused: r.endsAt - Date.now() } : r));
+  const resumeRest = () =>
+    setRest((r) =>
+      r && r.paused != null ? { ...r, endsAt: Date.now() + r.paused, paused: null } : r,
+    );
+  const restartRest = () => rest && startRest(rest.total);
+  const addRest = (sec: number) =>
+    setRest((r) =>
+      !r
+        ? r
+        : r.paused != null
+          ? { ...r, paused: r.paused + sec * 1000, total: r.total + sec }
+          : { ...r, endsAt: r.endsAt + sec * 1000, total: r.total + sec },
+    );
+  const endRest = () => {
+    setRest(null);
+    setRestDone(false);
+  };
 
   const byId = useMemo(() => new Map(list.map((e) => [e.id, e])), [list]);
   const current = order.length ? byId.get(order[Math.min(exIdx, order.length - 1)]) : undefined;
@@ -201,7 +232,8 @@ function TreinoAtivo() {
     if (newPrs.length > prs.length) toast.success("🏆 Novo recorde pessoal!");
     setPrs(newPrs);
     setSetInput({ weight: String(w), reps: "" });
-    setRestLeft(restPick);
+    unlockAudio();
+    startRest(restPick);
   };
 
   // Edição de uma série já concluída (peso/reps) com recálculo automático
@@ -236,7 +268,7 @@ function TreinoAtivo() {
     if (exIdx === 0) return;
     setExIdx((i) => i - 1);
     setSetInput({ weight: "", reps: "" });
-    setRestLeft(0);
+    endRest();
     setEditSet(null);
   };
 
@@ -244,7 +276,7 @@ function TreinoAtivo() {
     if (exIdx < order.length - 1) {
       setExIdx((i) => i + 1);
       setSetInput({ weight: "", reps: "" });
-      setRestLeft(0);
+      endRest();
       setEditSet(null);
     } else {
       setPhase("done");
@@ -267,7 +299,7 @@ function TreinoAtivo() {
       return next;
     });
     setSetInput({ weight: "", reps: "" });
-    setRestLeft(0);
+    endRest();
     toast.info(`"${skipped}" foi para o fim da fila — séries registradas mantidas.`);
   };
 
@@ -371,169 +403,307 @@ function TreinoAtivo() {
     );
   }
 
+  const setNum = currentLog.sets.length + 1;
+  const isLastExercise = exIdx >= order.length - 1;
+  const resting = rest != null;
+  const restPct = rest ? Math.max(0, Math.min(1, restRemaining / rest.total)) : 0;
+  const RING = 2 * Math.PI * 54; // circunferência do anel (r=54)
+
   return (
-    <div className="p-4 md:p-8 max-w-2xl mx-auto">
-      <div className="mb-4">
-        <div className="flex justify-between text-xs mb-1">
-          <span className="text-muted-foreground">Progresso</span>
-          <span className="font-semibold">
+    <div className="p-3 pb-6 md:p-8 max-w-md md:max-w-2xl mx-auto">
+      {/* ── progresso compacto ── */}
+      <div className="mb-3">
+        <div className="flex justify-between text-xs text-muted-foreground mb-1">
+          <span>
+            Exercício{" "}
+            <span className="font-semibold text-foreground">
+              {exIdx + 1}/{order.length}
+            </span>
+          </span>
+          <span>
             {doneSets}/{totalSets} séries
           </span>
         </div>
         <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-          <div className="h-full bg-primary transition-all" style={{ width: `${progressPct}%` }} />
+          <div
+            className="h-full bg-primary rounded-full transition-all"
+            style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }}
+          />
         </div>
       </div>
 
-      <Card className="mb-4">
-        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-          Exercício {exIdx + 1} / {order.length}
+      {/* ── exercício atual (prioridade 1) ── */}
+      <Card className="mb-3 py-3">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          {dayInfo ? `Treino de ${dayInfo.label}` : type}
         </div>
-        <div className="text-xl font-bold">{current.name}</div>
-        <div className="text-xs text-muted-foreground">
+        <h2 className="text-xl md:text-2xl font-bold leading-tight mt-0.5">{current.name}</h2>
+        <div className="text-xs text-muted-foreground mt-1">
           Meta: {current.sets} × {current.reps}
+          {current.load_kg ? ` · sugerido ${current.load_kg}kg` : ""}
+          {lastUse ? ` · último: ${lastUse.weight_kg}kg × ${lastUse.reps}` : ""}
         </div>
-        {lastUse && (
-          <div className="text-xs text-info mt-1">
-            Última vez: {lastUse.weight_kg}kg × {lastUse.reps}
+      </Card>
+
+      {/* ── TEMPORIZADOR DE DESCANSO (elemento principal ao descansar) ── */}
+      <Card
+        className={`mb-3 text-center transition-all duration-300 ${
+          resting
+            ? "ring-2 ring-primary/70 shadow-lg shadow-primary/10 py-4"
+            : restDone
+              ? "ring-2 ring-success/70 py-4"
+              : "py-2.5"
+        }`}
+        aria-live="polite"
+      >
+        {resting ? (
+          <>
+            <div className="relative mx-auto size-36">
+              <svg viewBox="0 0 120 120" className="size-36 -rotate-90">
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="54"
+                  fill="none"
+                  stroke="var(--color-muted)"
+                  strokeWidth="7"
+                />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="54"
+                  fill="none"
+                  stroke={restRemaining <= 5 ? "var(--color-success)" : "var(--color-primary)"}
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray={RING}
+                  strokeDashoffset={RING * (1 - restPct)}
+                  className="transition-[stroke-dashoffset] duration-300 ease-linear"
+                />
+              </svg>
+              <div
+                className={`absolute inset-0 flex flex-col items-center justify-center ${
+                  restRemaining <= 5 ? "animate-pulse" : ""
+                }`}
+              >
+                <span className="text-4xl font-bold tabular-nums">{fmtTime(restRemaining)}</span>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {rest.paused != null ? "pausado" : "descanso"}
+                </span>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-5 gap-1.5">
+              {rest.paused != null ? (
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={resumeRest}
+                  aria-label="Continuar descanso"
+                >
+                  <Play className="size-4" />
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={pauseRest}
+                  aria-label="Pausar descanso"
+                >
+                  <Pause className="size-4" />
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                className="h-11"
+                onClick={restartRest}
+                aria-label="Reiniciar descanso"
+              >
+                <RotateCcw className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 text-xs font-semibold"
+                onClick={() => addRest(15)}
+              >
+                +15s
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 text-xs font-semibold"
+                onClick={() => addRest(30)}
+              >
+                +30s
+              </Button>
+              <Button className="h-11 text-xs font-semibold" onClick={endRest}>
+                Pular
+              </Button>
+            </div>
+          </>
+        ) : restDone ? (
+          <div className="flex flex-col items-center gap-2">
+            <BellRing className="size-8 text-success animate-bounce" />
+            <div className="font-semibold text-success">Descanso concluído!</div>
+            <div className="text-xs text-muted-foreground">Pode iniciar a série {setNum}.</div>
+            <Button size="sm" variant="outline" className="h-9" onClick={() => setRestDone(false)}>
+              Ok, bora 💪
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+            <span>Descanso automático:</span>
+            {[60, 90, 120, 180].map((sec) => (
+              <button
+                key={sec}
+                onClick={() => setRestPick(sec)}
+                className={`px-2.5 py-1 rounded-full border text-xs font-semibold transition ${
+                  restPick === sec
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border text-muted-foreground"
+                }`}
+              >
+                {sec}s
+              </button>
+            ))}
           </div>
         )}
       </Card>
 
-      <Card className="mb-4">
-        <div className="text-sm font-semibold mb-3">
-          Séries concluídas: {currentLog.sets.length} / {current.sets}
-        </div>
-        <div className="space-y-1 mb-4">
-          {currentLog.sets.map((s, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm min-h-8">
-              <Check className="size-4 text-success shrink-0" />
-              {editSet?.idx === i ? (
-                <>
-                  <span className="shrink-0">Série {i + 1}:</span>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    inputMode="decimal"
-                    className="h-7 w-16 px-2"
-                    value={editSet.weight}
-                    onChange={(e) => setEditSet({ ...editSet, weight: e.target.value })}
-                    aria-label="Peso (kg)"
-                    autoFocus
-                  />
-                  <span className="text-muted-foreground">kg ×</span>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    className="h-7 w-14 px-2"
-                    value={editSet.reps}
-                    onChange={(e) => setEditSet({ ...editSet, reps: e.target.value })}
-                    aria-label="Repetições"
-                  />
-                  <Button size="sm" className="h-7 px-2" onClick={saveSetEdit}>
-                    OK
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2"
-                    onClick={() => setEditSet(null)}
-                  >
-                    ✕
-                  </Button>
-                </>
-              ) : (
-                <>
-                  Série {i + 1}:{" "}
-                  <span className="font-medium">
-                    {s.weight_kg}kg × {s.reps}
-                  </span>
-                  <button
-                    onClick={() =>
-                      setEditSet({ idx: i, weight: String(s.weight_kg), reps: String(s.reps) })
-                    }
-                    aria-label={`Editar série ${i + 1}`}
-                    className="ml-1 text-muted-foreground hover:text-foreground"
-                  >
-                    <Pencil className="size-3.5" />
-                  </button>
-                </>
-              )}
-            </div>
-          ))}
+      {/* ── série atual + registro ── */}
+      <Card className="mb-3">
+        <div className="flex items-baseline justify-between mb-2">
+          <div className="font-semibold">
+            Série {Math.min(setNum, current.sets)}
+            {setNum > current.sets ? "+" : ""} de {current.sets}
+          </div>
+          <span className="text-xs text-muted-foreground">{currentLog.sets.length} concluídas</span>
         </div>
 
         <div className="grid grid-cols-2 gap-2 mb-3">
           <div>
-            <label className="label-up block mb-1">Peso (kg)</label>
+            <label className="text-[11px] text-muted-foreground block mb-1">Peso (kg)</label>
             <Input
               type="number"
               step="0.5"
               inputMode="decimal"
+              className="h-12 text-lg text-center font-semibold"
+              placeholder={current.load_kg ? String(current.load_kg) : "0"}
               value={setInput.weight}
-              placeholder={String(current.load_kg ?? "")}
-              onChange={(e) => setSetInput((p) => ({ ...p, weight: e.target.value }))}
+              onChange={(e) => setSetInput({ ...setInput, weight: e.target.value })}
+              aria-label="Peso em kg"
             />
           </div>
           <div>
-            <label className="label-up block mb-1">Reps</label>
+            <label className="text-[11px] text-muted-foreground block mb-1">Repetições</label>
             <Input
               type="number"
               inputMode="numeric"
+              className="h-12 text-lg text-center font-semibold"
+              placeholder={current.reps}
               value={setInput.reps}
-              onChange={(e) => setSetInput((p) => ({ ...p, reps: e.target.value }))}
+              onChange={(e) => setSetInput({ ...setInput, reps: e.target.value })}
+              aria-label="Repetições"
             />
           </div>
         </div>
-        <Button onClick={completeSet} className="w-full">
-          ✅ Concluir série
-        </Button>
-      </Card>
 
-      <Card className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-semibold flex items-center gap-2">
-            <Timer className="size-4" /> Descanso
+        {/* séries concluídas como chips compactos (toque para editar) */}
+        {currentLog.sets.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {currentLog.sets.map((st, i) => (
+              <button
+                key={i}
+                onClick={() =>
+                  setEditSet({ idx: i, weight: String(st.weight_kg), reps: String(st.reps) })
+                }
+                className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs tabular-nums transition ${
+                  editSet?.idx === i
+                    ? "border-primary bg-primary/15"
+                    : "border-success/40 bg-success/10 text-foreground"
+                }`}
+                aria-label={`Editar série ${i + 1}: ${st.weight_kg}kg × ${st.reps}`}
+              >
+                <Check className="size-3 text-success" />
+                {st.weight_kg}kg×{st.reps}
+                <Pencil className="size-2.5 text-muted-foreground" />
+              </button>
+            ))}
           </div>
-          <div className="text-2xl font-bold tabular-nums">{fmtTime(restLeft)}</div>
-        </div>
-        <div className="flex gap-1">
-          {[60, 90, 120, 180].map((s) => (
-            <Button
-              key={s}
-              size="sm"
-              variant={restPick === s ? "default" : "outline"}
-              onClick={() => setRestPick(s)}
-              className="flex-1"
-            >
-              {s < 120 ? `${s}s` : `${s / 60}min`}
+        )}
+
+        {/* editor inline da série selecionada */}
+        {editSet && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2">
+            <span className="text-xs shrink-0">Série {editSet.idx + 1}:</span>
+            <Input
+              type="number"
+              step="0.5"
+              inputMode="decimal"
+              className="h-9 w-20 text-center"
+              value={editSet.weight}
+              onChange={(e) => setEditSet({ ...editSet, weight: e.target.value })}
+              aria-label="Peso (kg)"
+              autoFocus
+            />
+            <span className="text-xs text-muted-foreground">kg ×</span>
+            <Input
+              type="number"
+              inputMode="numeric"
+              className="h-9 w-16 text-center"
+              value={editSet.reps}
+              onChange={(e) => setEditSet({ ...editSet, reps: e.target.value })}
+              aria-label="Repetições"
+            />
+            <Button size="sm" className="h-9" onClick={saveSetEdit}>
+              OK
             </Button>
-          ))}
-        </div>
+            <Button size="sm" variant="ghost" className="h-9" onClick={() => setEditSet(null)}>
+              ✕
+            </Button>
+          </div>
+        )}
       </Card>
 
-      <div className="flex gap-2">
+      {/* ── ações principais (grandes, para uma mão) ── */}
+      <Button onClick={completeSet} className="w-full h-14 text-lg font-bold mb-2">
+        ✅ Concluir série {Math.min(setNum, current.sets)}
+      </Button>
+
+      <div className="grid grid-cols-3 gap-2 mb-2">
         <Button
           onClick={prevExercise}
           variant="outline"
+          className="h-12"
           disabled={exIdx === 0}
           aria-label="Exercício anterior"
         >
-          <ChevronLeft className="size-4" />
-          Anterior
+          <ChevronLeft className="size-4" /> Anterior
         </Button>
         <Button
           onClick={skipExercise}
           variant="outline"
-          className="flex-1"
-          disabled={exIdx >= order.length - 1}
+          className="h-12"
+          disabled={isLastExercise}
+          aria-label="Pular exercício"
         >
-          <SkipForward className="size-4 mr-1" /> Pular exercício
+          <SkipForward className="size-4" /> Pular
         </Button>
-        <Button onClick={nextExercise} className="flex-1">
-          {exIdx < order.length - 1 ? "Próximo exercício →" : "Finalizar treino"}
+        <Button
+          onClick={nextExercise}
+          variant={isLastExercise ? "outline" : "default"}
+          className="h-12"
+          aria-label="Próximo exercício"
+        >
+          {isLastExercise ? "Revisar" : "Próximo →"}
         </Button>
       </div>
+
+      <Button
+        onClick={() => setPhase("done")}
+        variant={isLastExercise ? "default" : "outline"}
+        className={`w-full h-12 font-semibold ${isLastExercise ? "" : "text-muted-foreground"}`}
+      >
+        🏁 Finalizar treino
+      </Button>
     </div>
   );
 }
