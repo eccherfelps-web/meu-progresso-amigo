@@ -243,3 +243,25 @@ toca em segundo plano, vibra no celular e troca o título da aba por
 **Botões principais.** Concluir Série (h-14), Anterior/Pular/Próximo (h-12,
 três colunas, polegar-friendly) e Finalizar Treino sempre acessível no fim —
 com destaque quando é o último exercício.
+
+---
+
+# v1.6.1 — Correção do som ao fim do descanso
+
+**Sintoma:** o som tocava no "Testar som" (Perfil) mas não ao terminar o
+temporizador. **Causas (três, combinadas):**
+
+1. **AudioContext suspenso na hora de tocar.** Durante a contagem, o navegador
+   re-suspende o contexto; `playAlert` chamava `resume()` e disparava os tons
+   no mesmo instante — antes do contexto voltar, então saíam mudos. Agora os
+   tons só são agendados **dentro do `.then()` do resume**. (O "Testar som"
+   funcionava porque tocava no mesmo gesto que mantinha o contexto ativo.)
+2. **Closure congelado no timer.** O `setInterval` capturava o `profile` e o
+   `rest` do render em que foi criado; quando o tempo zerava, lia preferências
+   antigas. O efeito virou um intervalo único de vida longa que lê tudo de
+   `refs` sempre atuais.
+3. **Unlock frágil.** O `unlockAudio` agora também toca um buffer silencioso no
+   gesto de "Concluir série", aquecendo o contexto para tocar em segundo plano.
+
+**Validação:** teste com AudioContext simulado iniciando suspenso — resume()
+chamado e tons emitidos (4/4 cenários). ESLint 0, TypeScript 0, build ok.
