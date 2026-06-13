@@ -1,10 +1,13 @@
-// Banco de alimentos dinâmico — Open Food Facts.
-// Usa dois endpoints em cadeia (o novo Search-a-licious e o legado cgi),
-// porque o legado é lento e tem limite de ~10 buscas/min.
+// Banco de alimentos dinâmico com cache local de 24 h.
+// Ordem de tentativa:
+//  1) br.openfoodfacts.org  — catálogo brasileiro (nomes em pt-BR)
+//  2) world.openfoodfacts.org/search — Search-a-licious filtrado por pt e pt-BR
+//  3) world.openfoodfacts.org/cgi   — legado mundial (fallback final)
 import type { FoodDb } from "./types";
 import { kvGetRow, kvWrite } from "./db";
 
 const TIMEOUT = 9000;
+const FIELDS = "product_name,product_name_pt,brands,nutriments,lang";
 
 async function fetchJson(url: string): Promise<unknown> {
   const ctrl = new AbortController();
@@ -26,7 +29,8 @@ function toFood(p: Record<string, unknown>): FoodDb | null {
   const kcal =
     num(n["energy-kcal_100g"]) ??
     (num(n["energy_100g"]) != null ? +(Number(n["energy_100g"]) / 4.184).toFixed(0) : null);
-  const name = (p.product_name_pt || p.product_name) as string | undefined;
+  // Prioridade: nome em pt → nome em pt-BR → nome genérico
+  const name = (p.product_name_pt as string | undefined) || (p.product_name as string | undefined);
   if (!name || kcal == null) return null;
   const brand =
     typeof p.brands === "string" && p.brands
@@ -41,7 +45,66 @@ function toFood(p: Record<string, unknown>): FoodDb | null {
   };
 }
 
-// ── cache local de buscas (reduz requisições e acelera repetições) ──
+/** Filtra nomes que parecem espanhol. Atenção: usa apenas palavras que NÃO
+ *  existem em português ("arroz" e "para" são PT também — não entram!). */
+export function ptOnly(foods: FoodDb[]): FoodDb[] {
+  return foods.filter((f) => {
+    const n = " " + f.name.toLowerCase() + " ";
+    const hasMarcaPt = /[ãõç]|ção|ções|eiro|eira|inho|inha/.test(n);
+    const looksEs =
+      !hasMarcaPt &&
+      /\b(pollo|leche|queso|jamon|jamón|galletas|azucar|azúcar|harina|mantequilla|frijoles|cebolla|manzana|fresa|yogur|huevo|helado|con|sin|los|las|del|una)\b/.test(
+        n,
+      );
+    return !looksEs;
+  });
+}
+
+export async function searchOpenFoodFacts(query: string): Promise<FoodDb[]> {
+  const q = encodeURIComponent(query.trim());
+  const endpoints: { url: string; key: "hits" | "products" }[] = [
+    // 1) catálogo br — resultados já em pt-BR
+    {
+      url: `https://br.openfoodfacts.org/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page_size=15&fields=${FIELDS}`,
+      key: "products",
+    },
+    // 2) Search-a-licious filtrado por idioma pt
+    {
+      url: `https://search.openfoodfacts.org/search?q=${q}&lang=pt&page_size=12&fields=${FIELDS}`,
+      key: "hits",
+    },
+    // 3) fallback mundial
+    {
+      url: `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page_size=12&fields=${FIELDS}`,
+      key: "products",
+    },
+  ];
+
+  let lastErr: Error | null = null;
+  for (const ep of endpoints) {
+    try {
+      const data = (await fetchJson(ep.url)) as Record<string, unknown>;
+      const items = (data[ep.key] ?? []) as Record<string, unknown>[];
+      const foods = ptOnly(items.map(toFood).filter((f): f is FoodDb => f !== null));
+      if (foods.length) return foods;
+      lastErr = new Error("vazio");
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      if (lastErr.message === "rate")
+        throw new Error(
+          "Limite de buscas da Open Food Facts atingido — aguarde ~1 minuto e tente de novo.",
+        );
+    }
+  }
+  if (lastErr?.message === "vazio") return [];
+  throw new Error(
+    lastErr?.name === "AbortError"
+      ? "A Open Food Facts demorou demais para responder — tente novamente."
+      : "Não foi possível conectar à Open Food Facts — verifique a internet.",
+  );
+}
+
+// ── cache local de buscas (24 h) ──
 const CACHE_KEY = "hlt_food_cache";
 const CACHE_TTL = 24 * 3600 * 1000;
 type CacheMap = Record<string, { at: number; foods: FoodDb[] }>;
@@ -51,7 +114,6 @@ async function readCache(): Promise<CacheMap> {
   return (row?.value as CacheMap) ?? {};
 }
 async function writeCache(map: CacheMap) {
-  // mantém só as 80 buscas mais recentes; clean=true → não sobe para a nuvem
   const entries = Object.entries(map)
     .sort((a, b) => b[1].at - a[1].at)
     .slice(0, 80);
@@ -63,54 +125,17 @@ export interface FoodSearchResult {
   fromCache: boolean;
 }
 
-/** Busca com cache: instantânea quando a consulta já foi feita nas últimas 24 h. */
 export async function searchFoodsOnline(query: string): Promise<FoodSearchResult> {
   const key = query.trim().toLowerCase();
   const cache = await readCache();
   const hit = cache[key];
-  if (hit && Date.now() - hit.at < CACHE_TTL && hit.foods.length) {
+  if (hit && Date.now() - hit.at < CACHE_TTL && hit.foods.length)
     return { foods: hit.foods, fromCache: true };
-  }
+
   const foods = await searchOpenFoodFacts(query);
   if (foods.length) {
     cache[key] = { at: Date.now(), foods };
     await writeCache(cache);
   }
   return { foods, fromCache: false };
-}
-
-export async function searchOpenFoodFacts(query: string): Promise<FoodDb[]> {
-  const q = encodeURIComponent(query.trim());
-  const fields = "product_name,product_name_pt,brands,nutriments";
-  const endpoints = [
-    // 1) Search-a-licious (novo, rápido, CORS liberado)
-    `https://search.openfoodfacts.org/search?q=${q}&page_size=12&fields=${fields}`,
-    // 2) Legado (mais lento, limite ~10/min)
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page_size=12&fields=${fields}`,
-  ];
-
-  let lastErr: Error | null = null;
-  for (const url of endpoints) {
-    try {
-      const data = (await fetchJson(url)) as { hits?: unknown[]; products?: unknown[] };
-      const items = (data.hits ?? data.products ?? []) as Record<string, unknown>[];
-      const foods = items.map(toFood).filter((f): f is FoodDb => f !== null);
-      if (foods.length) return foods;
-      // endpoint respondeu mas sem resultados úteis: tenta o próximo
-      lastErr = new Error("vazio");
-    } catch (e) {
-      lastErr = e instanceof Error ? e : new Error(String(e));
-      if (lastErr.message === "rate") {
-        throw new Error(
-          "Limite de buscas da Open Food Facts atingido — aguarde ~1 minuto e tente de novo.",
-        );
-      }
-    }
-  }
-  if (lastErr?.message === "vazio") return [];
-  throw new Error(
-    lastErr?.name === "AbortError"
-      ? "A Open Food Facts demorou demais para responder — tente novamente."
-      : "Não foi possível conectar à Open Food Facts — verifique a internet.",
-  );
 }

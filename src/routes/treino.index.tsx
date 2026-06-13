@@ -15,6 +15,7 @@ import type { Exercise, WeekSchedule, WorkoutSession } from "@/lib/hlt/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ExerciseForm } from "@/components/hlt/ExerciseForm";
+import { HistorySection } from "@/components/hlt/WorkoutHistory";
 import { MUSCLE_ICON } from "@/lib/hlt/exerciseCatalog";
 import {
   Pencil,
@@ -335,6 +336,8 @@ function TreinoPage() {
           })}
         </Tabs>
       )}
+
+      <HistorySection sessions={sessions} />
 
       <ExerciseForm
         open={formOpen}

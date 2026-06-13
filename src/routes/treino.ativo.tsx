@@ -16,6 +16,7 @@ import type {
 } from "@/lib/hlt/types";
 import { Trophy, Timer, Check, SkipForward } from "lucide-react";
 import { toast } from "sonner";
+import { Pencil, ChevronLeft } from "lucide-react";
 import { checkAchievements } from "@/lib/hlt/achievements";
 
 export const Route = createFileRoute("/treino/ativo")({
@@ -51,6 +52,9 @@ function TreinoAtivo() {
   const [phase, setPhase] = useState<"warmup" | "workout" | "done">("warmup");
   const [warmupLeft, setWarmupLeft] = useState(300);
   const [startedAt] = useState(Date.now());
+  const [editSet, setEditSet] = useState<{ idx: number; weight: string; reps: string } | null>(
+    null,
+  );
   const [exIdx, setExIdx] = useState(0);
   // Fila de exercícios (permite pular p/ o fim) + logs POR ID — as séries e
   // cargas ficam presas ao exercício, não à posição, então nada se perde.
@@ -162,6 +166,23 @@ function TreinoAtivo() {
     );
   }
 
+  // Recalcula TODOS os recordes a partir dos logs atuais — assim, editar uma
+  // série recalcula volume e PRs automaticamente (sem duplicatas).
+  const recomputePrs = (allLogs: Record<string, SessionExercise>) => {
+    const out: { exercise: string; type: "weight" | "reps"; value: number }[] = [];
+    for (const log of Object.values(allLogs)) {
+      if (!log.sets.length) continue;
+      const past = pastBest(log.exercise_id);
+      const bestW = Math.max(...log.sets.map((x) => x.weight_kg));
+      const bestR = Math.max(...log.sets.map((x) => x.reps));
+      if (bestW > past.bestW && past.bestW > 0)
+        out.push({ exercise: log.name, type: "weight", value: bestW });
+      if (bestR > past.bestR && past.bestR > 0)
+        out.push({ exercise: log.name, type: "reps", value: bestR });
+    }
+    return out;
+  };
+
   const completeSet = () => {
     if (!current || !currentLog) return;
     const w = parseFloat(setInput.weight) || current.load_kg || 0;
@@ -171,20 +192,52 @@ function TreinoAtivo() {
       return;
     }
     const newSet: WorkoutSet = { weight_kg: w, reps: r };
-    const past = pastBest(current.id);
-    const newPrs = [...prs];
-    if (w > past.bestW && past.bestW > 0)
-      newPrs.push({ exercise: current.name, type: "weight", value: w });
-    if (r > past.bestR && past.bestR > 0)
-      newPrs.push({ exercise: current.name, type: "reps", value: r });
-    setPrs(newPrs);
+    const newLogs = {
+      ...logs,
+      [current.id]: { ...logs[current.id], sets: [...logs[current.id].sets, newSet] },
+    };
+    setLogs(newLogs);
+    const newPrs = recomputePrs(newLogs);
     if (newPrs.length > prs.length) toast.success("🏆 Novo recorde pessoal!");
-    setLogs((prev) => ({
-      ...prev,
-      [current.id]: { ...prev[current.id], sets: [...prev[current.id].sets, newSet] },
-    }));
+    setPrs(newPrs);
     setSetInput({ weight: String(w), reps: "" });
     setRestLeft(restPick);
+  };
+
+  // Edição de uma série já concluída (peso/reps) com recálculo automático
+  const saveSetEdit = () => {
+    if (!editSet || !current || !currentLog) return;
+    const w = parseFloat(editSet.weight.replace(",", "."));
+    const r = parseInt(editSet.reps);
+    if (isNaN(w) || w < 0 || w > 1000) {
+      toast.error("Peso inválido");
+      return;
+    }
+    if (!r || r < 1 || r > 200) {
+      toast.error("Repetições inválidas");
+      return;
+    }
+    const newLogs = {
+      ...logs,
+      [current.id]: {
+        ...logs[current.id],
+        sets: logs[current.id].sets.map((x, i) =>
+          i === editSet.idx ? { weight_kg: w, reps: r } : x,
+        ),
+      },
+    };
+    setLogs(newLogs);
+    setPrs(recomputePrs(newLogs));
+    setEditSet(null);
+    toast.success("Série atualizada — volume e recordes recalculados.");
+  };
+
+  const prevExercise = () => {
+    if (exIdx === 0) return;
+    setExIdx((i) => i - 1);
+    setSetInput({ weight: "", reps: "" });
+    setRestLeft(0);
+    setEditSet(null);
   };
 
   const nextExercise = () => {
@@ -192,6 +245,7 @@ function TreinoAtivo() {
       setExIdx((i) => i + 1);
       setSetInput({ weight: "", reps: "" });
       setRestLeft(0);
+      setEditSet(null);
     } else {
       setPhase("done");
     }
@@ -352,12 +406,59 @@ function TreinoAtivo() {
         </div>
         <div className="space-y-1 mb-4">
           {currentLog.sets.map((s, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm">
-              <Check className="size-4 text-success" />
-              Série {i + 1}:{" "}
-              <span className="font-medium">
-                {s.weight_kg}kg × {s.reps}
-              </span>
+            <div key={i} className="flex items-center gap-2 text-sm min-h-8">
+              <Check className="size-4 text-success shrink-0" />
+              {editSet?.idx === i ? (
+                <>
+                  <span className="shrink-0">Série {i + 1}:</span>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    inputMode="decimal"
+                    className="h-7 w-16 px-2"
+                    value={editSet.weight}
+                    onChange={(e) => setEditSet({ ...editSet, weight: e.target.value })}
+                    aria-label="Peso (kg)"
+                    autoFocus
+                  />
+                  <span className="text-muted-foreground">kg ×</span>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    className="h-7 w-14 px-2"
+                    value={editSet.reps}
+                    onChange={(e) => setEditSet({ ...editSet, reps: e.target.value })}
+                    aria-label="Repetições"
+                  />
+                  <Button size="sm" className="h-7 px-2" onClick={saveSetEdit}>
+                    OK
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2"
+                    onClick={() => setEditSet(null)}
+                  >
+                    ✕
+                  </Button>
+                </>
+              ) : (
+                <>
+                  Série {i + 1}:{" "}
+                  <span className="font-medium">
+                    {s.weight_kg}kg × {s.reps}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setEditSet({ idx: i, weight: String(s.weight_kg), reps: String(s.reps) })
+                    }
+                    aria-label={`Editar série ${i + 1}`}
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -412,6 +513,15 @@ function TreinoAtivo() {
       </Card>
 
       <div className="flex gap-2">
+        <Button
+          onClick={prevExercise}
+          variant="outline"
+          disabled={exIdx === 0}
+          aria-label="Exercício anterior"
+        >
+          <ChevronLeft className="size-4" />
+          Anterior
+        </Button>
         <Button
           onClick={skipExercise}
           variant="outline"

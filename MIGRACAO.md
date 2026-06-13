@@ -183,3 +183,35 @@ Auditoria executada antes da publicação:
   (d) removido import duplicado.
 - TypeScript: 0 erros · Build completo (cliente + SSR): ok · Lógica de
   cronograma/slots revalidada após o autofix.
+
+---
+
+# v1.5 — Treino ativo refinado, histórico completo e busca em português
+
+**1. Editar séries concluídas.** Cada série registrada ganhou um lápis: toca,
+edita peso/reps inline, OK — volume e recordes são **recalculados do zero** a
+partir de todos os logs (os PRs deixaram de ser acumulados série a série,
+eliminando duplicatas e garantindo consistência após edições).
+
+**2. Exercício Anterior.** Botão "← Anterior" ao lado de Pular/Próximo. Como
+as séries são presas ao exercício (não à posição), navegar para trás e para
+frente preserva tudo que já foi registrado.
+
+**3–4. Histórico de treinos.** Nova seção na página Treino mostrando o
+**último treino de cada dia da semana** (Seg→Dom): dia, tipo com badge
+colorida, data, duração, volume e troféu quando houve PR. Clicar abre um
+**modal amplo e responsivo** com: estatísticas da sessão (duração, volume
+total, séries, melhor 1RM por Epley), recordes atingidos, e cada exercício
+com volume próprio e a grade de séries (#, kg × reps). Tudo derivado das
+sessões já salvas — zero duplicação de dados.
+
+**5. Busca de alimentos em português.** A busca agora prioriza o catálogo
+**br.openfoodfacts.org** (nomes em pt-BR), usa o campo `product_name_pt`
+quando existe, filtra por idioma no endpoint novo e aplica um filtro
+heurístico de espanhol. Correção importante sobre a primeira tentativa:
+"arroz" e "para" são palavras portuguesas e estavam derrubando produtos
+brasileiros — o filtro agora usa só marcadores exclusivos do espanhol
+(pollo, leche, queso, sin, del…), validado com 10 casos de teste.
+
+**Validação:** ESLint 0 · TypeScript 0 · build completo ok · filtro de idioma
+5 PT mantidos / 5 ES removidos.
