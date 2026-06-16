@@ -91,6 +91,12 @@ function TreinoAtivo() {
   const [, setTick] = useState(0); // re-render do contador
   const [restPick, setRestPick] = useState(90);
   const restAlerted = useRef(false);
+  // refs com os valores atuais — o callback do setInterval não "congela" o
+  // perfil nem o estado do descanso de quando o efeito foi criado.
+  const restRef = useRef(rest);
+  restRef.current = rest;
+  const soundPrefRef = useRef(profile);
+  soundPrefRef.current = profile;
   const [prs, setPrs] = useState<{ exercise: string; type: "weight" | "reps"; value: number }[]>(
     [],
   );
@@ -691,9 +697,14 @@ function TreinoAtivo() {
           onClick={nextExercise}
           variant={isLastExercise ? "outline" : "default"}
           className="h-12"
-          aria-label="Próximo exercício"
+          aria-label={isLastExercise ? "Revisar treino antes de finalizar" : "Próximo exercício"}
+          title={
+            isLastExercise
+              ? "Abre a tela de resumo do treino para você conferir tudo antes de salvar"
+              : "Avança para o próximo exercício"
+          }
         >
-          {isLastExercise ? "Revisar" : "Próximo →"}
+          {isLastExercise ? "Revisar ✓" : "Próximo →"}
         </Button>
       </div>
 
@@ -704,6 +715,12 @@ function TreinoAtivo() {
       >
         🏁 Finalizar treino
       </Button>
+      {isLastExercise && (
+        <p className="text-[11px] text-muted-foreground text-center mt-2">
+          <strong>Revisar ✓</strong> abre o resumo do treino (volume, recordes e duração) para você
+          conferir antes de salvar. <strong>Finalizar treino</strong> salva tudo direto.
+        </p>
+      )}
     </div>
   );
 }

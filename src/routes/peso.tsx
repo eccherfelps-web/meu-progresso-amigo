@@ -36,9 +36,9 @@ function PesoPage() {
   const [period, setPeriod] = useState<number>(30);
 
   const save = () => {
-    const v = parseFloat(input);
+    const v = parseFloat(input.replace(",", "."));
     if (!v || v < 30 || v > 300) {
-      toast.error("Peso inválido");
+      toast.error("Peso inválido — use um valor entre 30 e 300 kg");
       return;
     }
     const today = todayISO();
@@ -94,12 +94,16 @@ function PesoPage() {
       <Card className="mb-4">
         <div className="flex gap-2">
           <Input
-            type="number"
-            step="0.1"
-            placeholder="Peso de hoje (kg)"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            type="text"
             inputMode="decimal"
+            pattern="[0-9]*[.,]?[0-9]*"
+            placeholder="Peso de hoje (kg) — ex.: 58,5"
+            value={input}
+            onChange={(e) => {
+              // aceita só dígitos e um separador decimal (vírgula ou ponto)
+              const v = e.target.value.replace(/[^0-9.,]/g, "");
+              if (/^\d*[.,]?\d*$/.test(v)) setInput(v);
+            }}
           />
           <Button onClick={save}>Salvar</Button>
         </div>
@@ -211,8 +215,8 @@ function MeasuresSection({
   const save = () => {
     const entry: BodyMeasure = {
       date: todayISO(),
-      chest_cm: parseFloat(m.chest_cm) || undefined,
-      waist_cm: parseFloat(m.waist_cm) || undefined,
+      chest_cm: parseFloat(m.chest_cm.replace(",", ".")) || undefined,
+      waist_cm: parseFloat(m.waist_cm.replace(",", ".")) || undefined,
       arms_cm: parseFloat(m.arms_cm) || undefined,
       thighs_cm: parseFloat(m.thighs_cm) || undefined,
     };

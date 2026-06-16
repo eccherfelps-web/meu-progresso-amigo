@@ -41,10 +41,17 @@ export interface Exercise {
   kind?: "composto" | "isolado";
   equipment?: string;
   fav?: boolean;
+  /** Ordem manual dentro do grupo (menor = primeiro). */
+  order?: number;
 }
 
 /** Cronograma semanal editável: índice 0=Dom … 6=Sáb. */
-export type WeekSchedule = ("push" | "pull" | "legs" | "rest")[];
+export type TrainingGroup = "push" | "pull" | "legs";
+/** Cada dia (0=Dom…6=Sáb) pode ter 0, 1 ou vários grupos.
+ *  Formatos aceitos por dia: "rest" | um grupo | array de grupos.
+ *  (Compatível com o formato antigo de string única.) */
+export type DaySchedule = "rest" | TrainingGroup | TrainingGroup[];
+export type WeekSchedule = DaySchedule[];
 
 export interface WorkoutSet {
   weight_kg: number;

@@ -168,7 +168,7 @@ export const GROUP_LABEL: Record<"push" | "pull" | "legs" | "rest", string> = {
 // ── Cronograma semanal dinâmico ──
 // O usuário pode reorganizar a semana (ex.: trocar Pull e Legs de dia);
 // os exercícios seguem o GRUPO automaticamente, preservando histórico e stats.
-import type { WeekSchedule } from "./types";
+import type { WeekSchedule, DaySchedule, TrainingGroup } from "./types";
 
 export const DEFAULT_SCHEDULE: WeekSchedule = [
   "rest",
@@ -182,6 +182,11 @@ export const DEFAULT_SCHEDULE: WeekSchedule = [
 
 export const DOW_LABEL = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 export const DOW_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+export const GROUP_LABEL_SHORT: Record<TrainingGroup, string> = {
+  push: "Push",
+  pull: "Pull",
+  legs: "Legs",
+};
 const GROUP_FOCUS: Record<"push" | "pull" | "legs", string> = {
   push: "Peito • Ombros • Tríceps",
   pull: "Costas • Bíceps • Antebraço",
@@ -192,27 +197,42 @@ export interface TrainingDay {
   dow: number; // 0=Dom … 6=Sáb
   short: string;
   label: string;
-  group: "push" | "pull" | "legs";
+  group: TrainingGroup; // grupo primário (compatibilidade)
+  groups: TrainingGroup[]; // todos os grupos do dia
+  occ: Record<string, number>; // ocorrência por grupo
   focus: string;
-  occurrence: number; // 0 = 1ª vez do grupo na semana, 1 = 2ª…
+  occurrence: number; // ocorrência do grupo primário
 }
 
-/** Converte o cronograma em dias de treino (ignora descansos). */
+/** Normaliza um dia para lista de grupos (aceita string única ou array). */
+export function dayGroups(day: DaySchedule | undefined): TrainingGroup[] {
+  if (!day || day === "rest") return [];
+  return Array.isArray(day) ? day : [day];
+}
+
+/** Converte o cronograma em dias de treino. Um dia com vários grupos vira UM
+ *  TrainingDay com todos eles (occurrence é por grupo, ao longo da semana). */
 export function daysFromSchedule(schedule: WeekSchedule): TrainingDay[] {
   const count: Record<string, number> = {};
   const out: TrainingDay[] = [];
   for (let dow = 0; dow < 7; dow++) {
-    const g = schedule[dow];
-    if (g === "rest" || !g) continue;
-    const occurrence = count[g] ?? 0;
-    count[g] = occurrence + 1;
+    const groups = dayGroups(schedule[dow]);
+    if (groups.length === 0) continue;
+    const occ: Record<string, number> = {};
+    for (const g of groups) {
+      occ[g] = count[g] ?? 0;
+      count[g] = occ[g] + 1;
+    }
+    const primary = groups[0];
     out.push({
       dow,
       short: DOW_SHORT[dow],
       label: DOW_LABEL[dow],
-      group: g,
-      focus: GROUP_FOCUS[g],
-      occurrence,
+      group: primary,
+      groups,
+      occ,
+      focus: groups.map((g) => GROUP_LABEL_SHORT[g]).join(" + "),
+      occurrence: occ[primary],
     });
   }
   return out;
@@ -222,6 +242,15 @@ export const TRAINING_DAYS: TrainingDay[] = daysFromSchedule(DEFAULT_SCHEDULE);
 
 export function exercisesForDay(all: Exercise[], day: TrainingDay): Exercise[] {
   return all
-    .filter((e) => e.group === day.group && (e.slot == null || e.slot === day.occurrence))
-    .sort((a, b) => Number(b.fav ?? false) - Number(a.fav ?? false));
+    .filter((e) => day.groups.includes(e.group) && (e.slot == null || e.slot === day.occ[e.group]))
+    .sort((a, b) => {
+      // 1) ordem manual; 2) favoritos; 3) agrupa por grupo na ordem do dia
+      const ga = day.groups.indexOf(a.group),
+        gb = day.groups.indexOf(b.group);
+      if (ga !== gb) return ga - gb;
+      const oa = a.order ?? 999,
+        ob = b.order ?? 999;
+      if (oa !== ob) return oa - ob;
+      return Number(b.fav ?? false) - Number(a.fav ?? false);
+    });
 }

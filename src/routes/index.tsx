@@ -2,7 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Card, PageHeader } from "@/components/hlt/Shell";
 import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
-import { DEFAULT_PROFILE, DEFAULT_SCHEDULE, GROUP_LABEL } from "@/lib/hlt/defaults";
+import {
+  DEFAULT_PROFILE,
+  DEFAULT_SCHEDULE,
+  GROUP_LABEL,
+  GROUP_LABEL_SHORT,
+  dayGroups,
+} from "@/lib/hlt/defaults";
 import { dailyMacros, todayISO } from "@/lib/hlt/calc";
 import type {
   FoodLog,
@@ -33,8 +39,12 @@ function Dashboard() {
   const today = todayISO();
   const dayOfWeek = new Date().getDay();
   const [schedule] = useLocalStorage<WeekSchedule>(KEYS.schedule, DEFAULT_SCHEDULE);
-  const todayType = schedule[dayOfWeek] ?? "rest";
-  const isRest = todayType === "rest";
+  const todayGroups = dayGroups(schedule[dayOfWeek]);
+  const isRestDay = todayGroups.length === 0;
+  const todayLabel = isRestDay
+    ? "Descanso"
+    : todayGroups.map((g) => GROUP_LABEL_SHORT[g]).join(" + ");
+  const isRest = isRestDay;
   const macros = dailyMacros(profile, isRest);
 
   const todayFood = foods.find((f) => f.date === today);
@@ -82,12 +92,12 @@ function Dashboard() {
 
   const motivational = useMemo(() => {
     const left = profile.weight_goal_kg - profile.weight_current_kg;
-    if (todayType !== "rest") {
-      return `Treino ${todayType.toUpperCase()} hoje — vamos lá! 💪`;
+    if (!isRestDay) {
+      return `Treino ${todayLabel} hoje — vamos lá! 💪`;
     }
     if (left > 0) return `Você está a ${left.toFixed(1)}kg do seu objetivo!`;
     return "Mantenha o foco — disciplina vence motivação.";
-  }, [profile, todayType]);
+  }, [profile, isRestDay, todayLabel]);
 
   const macroPie = [
     { name: "Proteína", value: consumed.p * 4, color: "var(--color-success)" },
@@ -107,8 +117,10 @@ function Dashboard() {
             <Dumbbell className="size-4 text-primary" />
             <span className="label-up">Hoje</span>
           </div>
-          <div className="text-lg font-bold">{isRest ? "Descanso" : todayType?.toUpperCase()}</div>
-          <div className="text-xs text-muted-foreground">{GROUP_LABEL[todayType ?? "rest"]}</div>
+          <div className="text-lg font-bold">{todayLabel}</div>
+          <div className="text-xs text-muted-foreground">
+            {isRestDay ? GROUP_LABEL.rest : todayGroups.map((g) => GROUP_LABEL[g]).join(" · ")}
+          </div>
         </Card>
         <Card>
           <div className="flex items-center gap-2 mb-1">

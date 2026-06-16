@@ -6,8 +6,8 @@ import {
   DEFAULT_EXERCISES,
   DEFAULT_SCHEDULE,
   DOW_SHORT,
-  DOW_LABEL,
   daysFromSchedule,
+  dayGroups,
   exercisesForDay,
   type TrainingDay,
 } from "@/lib/hlt/defaults";
@@ -27,6 +27,8 @@ import {
   Star,
   GripVertical,
   RotateCcw,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -103,28 +105,54 @@ function TreinoPage() {
   const toggleFav = (id: string) =>
     setExercises((prev) => prev.map((e) => (e.id === id ? { ...e, fav: !e.fav } : e)));
 
-  // ── editor do cronograma (drag-and-drop + toque) ──
-  const [editWeek, setEditWeek] = useState(false);
-  const [pick, setPick] = useState<number | null>(null);
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  // ── reordenar exercícios dentro de um dia (mover ↑/↓ + arrastar) ──
+  const moveExercise = (dayList: Exercise[], id: string, dir: -1 | 1) => {
+    const idx = dayList.findIndex((e) => e.id === id);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= dayList.length) return;
+    const a = dayList[idx],
+      b = dayList[target];
+    // troca a ordem manual entre os dois vizinhos (normalizando se ausente)
+    setExercises((prev) => {
+      const orderOf = (ex: Exercise) => ex.order ?? dayList.findIndex((x) => x.id === ex.id);
+      const oa = orderOf(a),
+        ob = orderOf(b);
+      return prev.map((e) => {
+        if (e.id === a.id) return { ...e, order: ob };
+        if (e.id === b.id) return { ...e, order: oa };
+        return e;
+      });
+    });
+  };
+  const reorderByDrag = (dayList: Exercise[], fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const ids = dayList.map((e) => e.id);
+    const from = ids.indexOf(fromId),
+      to = ids.indexOf(toId);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setExercises((prev) =>
+      prev.map((e) => {
+        const pos = ids.indexOf(e.id);
+        return pos >= 0 ? { ...e, order: pos } : e;
+      }),
+    );
+    toast.success("Ordem dos exercícios atualizada.");
+  };
+  const [dragExId, setDragExId] = useState<string | null>(null);
 
-  const swapDays = (a: number, b: number) => {
-    if (a === b) return;
+  // ── editor do cronograma: liga/desliga grupos por dia (múltiplos!) ──
+  const [editWeek, setEditWeek] = useState(false);
+
+  const toggleGroup = (dow: number, group: "push" | "pull" | "legs") => {
     setSchedule((prev) => {
-      const next = [...prev];
-      [next[a], next[b]] = [next[b], next[a]];
+      const next = [...prev] as WeekSchedule;
+      const current = dayGroups(next[dow]);
+      const has = current.includes(group);
+      const updated = has ? current.filter((g) => g !== group) : [...current, group];
+      next[dow] = updated.length === 0 ? "rest" : updated.length === 1 ? updated[0] : updated;
       return next;
     });
-    toast.success(
-      `${DOW_LABEL[a]} ⇄ ${DOW_LABEL[b]} — exercícios, histórico e estatísticas preservados.`,
-    );
-  };
-  const tapDay = (dow: number) => {
-    if (pick == null) setPick(dow);
-    else {
-      swapDays(pick, dow);
-      setPick(null);
-    }
   };
 
   const weeksTraining = Math.min(8, Math.floor(sessions.length / 5));
@@ -137,49 +165,52 @@ function TreinoPage() {
         <Button
           variant={editWeek ? "default" : "outline"}
           size="sm"
-          onClick={() => {
-            setEditWeek((v) => !v);
-            setPick(null);
-          }}
+          onClick={() => setEditWeek((v) => !v)}
         >
-          <CalendarRange className="size-4 mr-1" /> {editWeek ? "Concluir" : "Reorganizar semana"}
+          <CalendarRange className="size-4 mr-1" /> {editWeek ? "Concluir" : "Editar semana"}
         </Button>
       </div>
 
       {editWeek && (
         <Card className="mb-4">
-          <div className="text-sm font-semibold mb-1">Reorganizar a semana</div>
+          <div className="text-sm font-semibold mb-1">Montar a semana</div>
           <div className="text-xs text-muted-foreground mb-3">
-            Arraste um dia sobre outro (ou toque em dois dias) para trocá-los. Os exercícios seguem
-            o grupo automaticamente.
+            Toque para ligar/desligar cada grupo em cada dia. Um mesmo dia pode ter vários grupos
+            (ex.: Sábado com Pull + Legs). Exercícios, histórico e estatísticas são preservados.
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {schedule.map((g, dow) => (
-              <button
-                key={dow}
-                draggable
-                onDragStart={() => setDragFrom(dow)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (dragFrom != null) {
-                    swapDays(dragFrom, dow);
-                    setDragFrom(null);
-                  }
-                }}
-                onClick={() => tapDay(dow)}
-                className={`rounded-lg border p-2 text-center cursor-grab active:cursor-grabbing transition
-                  ${pick === dow ? "border-primary ring-2 ring-primary/50" : "border-border"}
-                  ${dow === todayDow ? "bg-accent/40" : ""}`}
-              >
-                <div className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
-                  <GripVertical className="size-3" />
-                  {DOW_SHORT[dow]}
+          <div className="space-y-1.5">
+            {Array.from({ length: 7 }, (_, dow) => {
+              const groups = dayGroups(schedule[dow]);
+              return (
+                <div
+                  key={dow}
+                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${dow === todayDow ? "border-primary/40 bg-accent/30" : "border-border"}`}
+                >
+                  <span className="w-9 text-sm font-semibold">{DOW_SHORT[dow]}</span>
+                  <div className="flex gap-1.5 flex-1">
+                    {(["push", "pull", "legs"] as const).map((g) => {
+                      const on = groups.includes(g);
+                      return (
+                        <button
+                          key={g}
+                          onClick={() => toggleGroup(dow, g)}
+                          className={`flex-1 rounded-md py-1.5 text-[11px] font-bold uppercase transition ${
+                            on ? GROUP_BADGE[g] : "bg-muted/40 text-muted-foreground/60"
+                          }`}
+                        >
+                          {GROUP_SHORT[g]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="w-12 text-right text-[10px] text-muted-foreground">
+                    {groups.length === 0
+                      ? "folga"
+                      : `${groups.length} grupo${groups.length > 1 ? "s" : ""}`}
+                  </span>
                 </div>
-                <div className={`mt-1 text-[10px] font-bold rounded px-1 py-0.5 ${GROUP_BADGE[g]}`}>
-                  {GROUP_SHORT[g]}
-                </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
           <Button
             variant="ghost"
@@ -259,60 +290,101 @@ function TreinoPage() {
                   </Button>
                 </div>
 
-                {list.map((e) => (
-                  <Card key={e.id}>
-                    <div className="flex items-start gap-2">
-                      <button
-                        onClick={() => toggleFav(e.id)}
-                        aria-label="Favoritar"
-                        className="mt-0.5"
-                      >
-                        <Star
-                          className={`size-4 ${e.fav ? "fill-warning text-warning" : "text-muted-foreground/50"}`}
-                        />
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium flex items-center gap-1.5">
-                          {e.muscle && <span title={e.muscle}>{MUSCLE_ICON[e.muscle] ?? ""}</span>}
-                          {e.name}
+                {list.map((e, exPos) => (
+                  <div
+                    key={e.id}
+                    draggable
+                    onDragStart={() => setDragExId(e.id)}
+                    onDragOver={(ev: React.DragEvent) => ev.preventDefault()}
+                    onDrop={() => {
+                      if (dragExId) reorderByDrag(list, dragExId, e.id);
+                      setDragExId(null);
+                    }}
+                    className={dragExId === e.id ? "opacity-50" : ""}
+                  >
+                    <Card>
+                      <div className="flex items-start gap-2">
+                        {/* alça + mover ↑/↓ */}
+                        <div className="flex flex-col items-center -ml-1 mt-0.5">
+                          <button
+                            onClick={() => moveExercise(list, e.id, -1)}
+                            disabled={exPos === 0}
+                            aria-label="Mover para cima"
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-25 leading-none"
+                          >
+                            <ChevronUp className="size-4" />
+                          </button>
+                          <GripVertical className="size-3.5 text-muted-foreground/40 cursor-grab active:cursor-grabbing" />
+                          <button
+                            onClick={() => moveExercise(list, e.id, 1)}
+                            disabled={exPos === list.length - 1}
+                            aria-label="Mover para baixo"
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-25 leading-none"
+                          >
+                            <ChevronDown className="size-4" />
+                          </button>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {e.sets} × {e.reps}
-                          {e.rest_s ? ` · descanso ${e.rest_s}s` : ""}
-                          {e.equipment ? ` · ${e.equipment}` : ""}
-                          {e.slot != null
-                            ? ` · só ${days.find((x) => x.group === e.group && x.occurrence === e.slot)?.label ?? `${e.slot + 1}º dia do grupo`}`
-                            : ""}
+                        <button
+                          onClick={() => toggleFav(e.id)}
+                          aria-label="Favoritar"
+                          className="mt-0.5"
+                        >
+                          <Star
+                            className={`size-4 ${e.fav ? "fill-warning text-warning" : "text-muted-foreground/50"}`}
+                          />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium flex items-center gap-1.5">
+                            {e.muscle && (
+                              <span title={e.muscle}>{MUSCLE_ICON[e.muscle] ?? ""}</span>
+                            )}
+                            {e.name}
+                            {d.groups.length > 1 && (
+                              <span
+                                className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${GROUP_BADGE[e.group]}`}
+                              >
+                                {GROUP_SHORT[e.group]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {e.sets} × {e.reps}
+                            {e.rest_s ? ` · descanso ${e.rest_s}s` : ""}
+                            {e.equipment ? ` · ${e.equipment}` : ""}
+                            {e.slot != null
+                              ? ` · só ${days.find((x) => x.groups.includes(e.group) && x.occ[e.group] === e.slot)?.label ?? `${e.slot + 1}º dia do grupo`}`
+                              : ""}
+                          </div>
+                          {e.notes && <div className="text-[11px] text-info mt-0.5">{e.notes}</div>}
                         </div>
-                        {e.notes && <div className="text-[11px] text-info mt-0.5">{e.notes}</div>}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-semibold tabular-nums">
+                            {e.load_kg ? `${e.load_kg}kg` : "—"}
+                          </span>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditTarget(e);
+                              setFormDay(d);
+                              setFormOpen(true);
+                            }}
+                            aria-label="Editar"
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => remove(e)}
+                            aria-label="Excluir"
+                          >
+                            <Trash2 className="size-4 text-danger" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-semibold tabular-nums">
-                          {e.load_kg ? `${e.load_kg}kg` : "—"}
-                        </span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => {
-                            setEditTarget(e);
-                            setFormDay(d);
-                            setFormOpen(true);
-                          }}
-                          aria-label="Editar"
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => remove(e)}
-                          aria-label="Excluir"
-                        >
-                          <Trash2 className="size-4 text-danger" />
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
+                    </Card>
+                  </div>
                 ))}
                 {list.length === 0 && (
                   <Card className="text-sm text-muted-foreground">

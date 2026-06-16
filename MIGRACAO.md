@@ -265,3 +265,34 @@ temporizador. **Causas (três, combinadas):**
 
 **Validação:** teste com AudioContext simulado iniciando suspenso — resume()
 chamado e tons emitidos (4/4 cenários). ESLint 0, TypeScript 0, build ok.
+
+---
+
+# v1.7 — Reordenar exercícios, múltiplos grupos por dia e ajustes
+
+**1. Reordenar exercícios.** Cada exercício no plano ganhou botões mover ↑/↓ e
+arrastar-e-soltar (alça de grip). A ordem é salva por exercício (campo `order`)
+e respeitada no plano e no treino ativo. Sem excluir/recadastrar.
+
+**2. Botão "Revisar" explicado.** Virou "Revisar ✓" com tooltip e uma legenda
+fixa quando é o último exercício: abre o resumo do treino (volume, recordes,
+duração) para conferência antes de salvar — enquanto "Finalizar treino" salva
+direto.
+
+**3. Vírgula no peso (mobile).** O campo de peso era `type="number"`, que no
+teclado do celular brasileiro rejeita a vírgula. Agora é `type="text"` +
+`inputMode="decimal"` + máscara, aceitando "58,5" e convertendo para 58.5 ao
+salvar. Mesma correção nas medidas corporais (peito/cintura).
+
+**4. Múltiplos grupos por dia.** O cronograma evoluiu de um grupo por dia para
+**uma lista de grupos por dia** (ex.: Sábado = Pull + Legs). O editor de semana
+virou uma grade de toggles (liga/desliga Push, Pull, Legs em cada dia). Um dia
+com vários grupos mostra todos os exercícios, agrupados e com badge do grupo.
+A ocorrência (slot) é contada por grupo ao longo da semana, então a Rosca de
+Punho (2º dia de pull) aparece corretamente mesmo quando o 2º pull é num dia
+combinado. Totalmente retrocompatível: dias salvos como string única
+continuam funcionando.
+
+**Validação:** dayGroups (4 formatos), Sábado Pull+Legs com 13 exercícios na
+ordem certa, ocorrência por grupo, reordenação manual — todos testados.
+ESLint 0 · TypeScript 0 · build ok.

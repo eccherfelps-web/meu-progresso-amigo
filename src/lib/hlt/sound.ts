@@ -1,6 +1,8 @@
 // Alertas sonoros sintetizados via Web Audio — sem arquivos de áudio.
 // O contexto precisa ser "destravado" por um gesto do usuário (regra dos
-// navegadores); fazemos isso ao tocar em "Concluir Série".
+// navegadores). Detalhe crítico: ao tocar depois de um tempo (fim do
+// descanso), o contexto pode ter voltado a "suspended" — por isso o disparo
+// dos tons SEMPRE espera o resume() concluir antes de agendar o áudio.
 export type AlertSound = "beep" | "sino" | "digital";
 
 export const SOUND_OPTIONS: { value: AlertSound; label: string }[] = [
@@ -21,10 +23,21 @@ function getCtx(): AudioContext | null {
   return ctx;
 }
 
-/** Chamar dentro de um clique/toque para liberar o áudio (inclusive em segundo plano). */
+/** Liga o áudio num gesto do usuário. Mantém o contexto "aquecido" tocando um
+ *  buffer silencioso — isso melhora muito a chance de tocar em segundo plano. */
 export function unlockAudio() {
   const c = getCtx();
-  if (c && c.state === "suspended") void c.resume();
+  if (!c) return;
+  void c.resume();
+  try {
+    const buffer = c.createBuffer(1, 1, 22050);
+    const src = c.createBufferSource();
+    src.buffer = buffer;
+    src.connect(c.destination);
+    src.start(0);
+  } catch {
+    /* ignore */
+  }
 }
 
 function tone(
@@ -35,25 +48,20 @@ function tone(
   vol: number,
   type: OscillatorType = "sine",
 ) {
+  const t0 = c.currentTime + start;
   const osc = c.createOscillator();
   const gain = c.createGain();
   osc.type = type;
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.0001, c.currentTime + start);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol), c.currentTime + start + 0.015);
-  gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + start + dur);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol), t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   osc.connect(gain).connect(c.destination);
-  osc.start(c.currentTime + start);
-  osc.stop(c.currentTime + start + dur + 0.05);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
 }
 
-/** Toca o alerta escolhido. volume: 0–1. */
-export function playAlert(sound: AlertSound = "beep", volume = 0.7) {
-  const c = getCtx();
-  if (!c) return;
-  if (c.state === "suspended") void c.resume();
-  const v = Math.min(1, Math.max(0, volume));
-  if (v === 0) return;
+function emit(c: AudioContext, sound: AlertSound, v: number) {
   switch (sound) {
     case "beep":
       tone(c, 880, 0.0, 0.18, v);
@@ -71,5 +79,22 @@ export function playAlert(sound: AlertSound = "beep", volume = 0.7) {
       tone(c, 660, 0.3, 0.1, v, "square");
       tone(c, 1100, 0.45, 0.25, v, "square");
       break;
+  }
+}
+
+/** Toca o alerta. Espera o contexto retomar (caso suspenso) antes de emitir,
+ *  o que conserta o caso "não toca ao fim do descanso". */
+export function playAlert(sound: AlertSound = "beep", volume = 0.7) {
+  const c = getCtx();
+  if (!c) return;
+  const v = Math.min(1, Math.max(0, volume));
+  if (v === 0) return;
+  if (c.state === "suspended") {
+    // agenda os tons só depois do resume — senão saem mudos
+    c.resume()
+      .then(() => emit(c, sound, v))
+      .catch(() => {});
+  } else {
+    emit(c, sound, v);
   }
 }
