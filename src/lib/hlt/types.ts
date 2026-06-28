@@ -43,6 +43,9 @@ export interface Exercise {
   fav?: boolean;
   /** Ordem manual dentro do grupo (menor = primeiro). */
   order?: number;
+  /** Exercício de peso corporal (paralela, barra fixa, flexão…): o 1RM soma
+   *  o peso do corpo à carga digitada (que vira o peso ADICIONAL). */
+  bodyweight?: boolean;
 }
 
 /** Cronograma semanal editável: índice 0=Dom … 6=Sáb. */
@@ -63,6 +66,10 @@ export interface SessionExercise {
   name: string;
   group: MuscleGroup;
   sets: WorkoutSet[];
+  /** Era exercício de peso corporal nesta sessão. */
+  bodyweight?: boolean;
+  /** Peso do corpo (kg) na data da sessão — usado no 1RM histórico. */
+  bodyweight_kg?: number;
 }
 
 export interface WorkoutSession {

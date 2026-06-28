@@ -68,6 +68,7 @@ export function ExerciseForm({
   const [equipment, setEquipment] = useState("Halteres");
   const [slot, setSlot] = useState<string>("all");
   const [notes, setNotes] = useState("");
+  const [bodyweight, setBodyweight] = useState(false);
   const [showSug, setShowSug] = useState(false);
 
   // (re)preenche ao abrir
@@ -87,6 +88,7 @@ export function ExerciseForm({
       setEquipment(initial.equipment ?? "Halteres");
       setSlot(initial.slot != null ? String(initial.slot) : "all");
       setNotes(initial.notes ?? "");
+      setBodyweight(initial.bodyweight ?? false);
     } else {
       setName("");
       setGroup(defaultGroup);
@@ -101,6 +103,7 @@ export function ExerciseForm({
       setEquipment("Halteres");
       setSlot(defaultSlot != null ? String(defaultSlot) : "all");
       setNotes("");
+      setBodyweight(false);
     }
     setShowSug(false);
   }, [open, initial, defaultGroup, defaultSlot]);
@@ -139,6 +142,7 @@ export function ExerciseForm({
     setMuscle(c.muscle);
     setEquipment(c.equipment);
     setKind(c.kind);
+    if (c.equipment === "Peso corporal") setBodyweight(true);
     setShowSug(false);
   };
 
@@ -178,6 +182,7 @@ export function ExerciseForm({
           ? undefined
           : parseInt(slot),
       notes: notes.trim() || undefined,
+      bodyweight,
       fav: initial?.fav,
     });
     onOpenChange(false);
@@ -378,6 +383,22 @@ export function ExerciseForm({
               </Select>
             </div>
           </div>
+
+          <label className="flex items-center gap-2 rounded-lg border border-border p-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={bodyweight}
+              onChange={(e) => setBodyweight(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            <span className="text-sm">
+              Exercício de peso corporal
+              <span className="block text-[11px] text-muted-foreground">
+                Paralela, barra fixa, flexão… O 1RM soma seu peso ao campo de carga (que vira o peso
+                adicional — use 0 se for só o corpo).
+              </span>
+            </span>
+          </label>
 
           <div>
             <label className="text-[11px] text-muted-foreground">Observações</label>

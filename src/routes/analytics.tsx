@@ -3,7 +3,14 @@ import { useMemo, useState } from "react";
 import { Card, PageHeader } from "@/components/hlt/Shell";
 import { Button } from "@/components/ui/button";
 import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
-import { DEFAULT_EXERCISES, DEFAULT_PROFILE } from "@/lib/hlt/defaults";
+import {
+  DEFAULT_EXERCISES,
+  DEFAULT_PROFILE,
+  DEFAULT_SCHEDULE,
+  daysFromSchedule,
+  dayGroups,
+} from "@/lib/hlt/defaults";
+import { consecutiveTrainingStreak, scheduleStatus } from "@/lib/hlt/streakHelpers";
 import type {
   Assessment,
   Exercise,
@@ -12,6 +19,7 @@ import type {
   Profile,
   WeightLog,
   WorkoutSession,
+  WeekSchedule,
 } from "@/lib/hlt/types";
 import { dailyMacros } from "@/lib/hlt/calc";
 import {
@@ -42,7 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Lightbulb, Trophy } from "lucide-react";
-import { epley } from "@/lib/hlt/onerm";
+import { oneRepMax } from "@/lib/hlt/onerm";
 import { ACHIEVEMENTS, type UnlockedAchievement } from "@/lib/hlt/achievements";
 import { toast } from "sonner";
 
@@ -59,6 +67,7 @@ function AnalyticsPage() {
   const [weights] = useLocalStorage<WeightLog[]>(KEYS.weights, []);
   const [foods] = useLocalStorage<FoodLog[]>(KEYS.foods, []);
   const [profile] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
+  const [schedule] = useLocalStorage<WeekSchedule>(KEYS.schedule, DEFAULT_SCHEDULE);
   const [assessment, setAssessment] = useLocalStorage<Assessment | null>(KEYS.assessment, null);
   const [unlocked] = useLocalStorage<UnlockedAchievement[]>(KEYS.achievements, []);
   const [selectedExId, setSelectedExId] = useState(exercises[0]?.id ?? "");
@@ -76,7 +85,15 @@ function AnalyticsPage() {
       const ex = s.exercises.find((e) => e.exercise_id === selectedExId);
       if (!ex || ex.sets.length === 0) return [];
       const maxW = Math.max(...ex.sets.map((x) => x.weight_kg));
-      const rm = Math.max(...ex.sets.map((x) => epley(x.weight_kg, x.reps)));
+      const rm = Math.max(
+        ...ex.sets.map((x) =>
+          oneRepMax(x.weight_kg, x.reps, {
+            bodyweight: ex.bodyweight,
+            bodyweightKg: ex.bodyweight_kg,
+            exerciseName: ex.name,
+          }),
+        ),
+      );
       return [{ date: s.date.slice(5, 10), peso: maxW, rm }];
     });
   }, [sessions, selectedExId]);
@@ -319,30 +336,55 @@ function AnalyticsPage() {
     const legs = radarData.find((r) => r.group === "Pernas")?.volume ?? 0;
     if (chest > 0 && legs < chest * 0.6)
       t.push("Pernas recebendo menos atenção — reforce o treino de quarta.");
-    // 7 days in a row
-    const last7Sessions = sessions.slice(-7);
-    if (last7Sessions.length === 7) {
-      const uniqueDays = new Set(last7Sessions.map((s) => s.date.slice(0, 10)));
-      if (uniqueDays.size === 7)
-        t.push("⚠️ 7 dias seguidos sem descanso — planeje uma folga para evitar overtraining.");
-    }
+    // dias CONSECUTIVOS de treino (calendário real, sem buracos)
+    const consec = consecutiveTrainingStreak(sessions);
+    if (consec >= 7)
+      t.push(
+        `⚠️ ${consec} dias seguidos sem descanso — planeje uma folga para evitar overtraining.`,
+      );
+    // treino do cronograma não registrado nesta semana
+    const st = scheduleStatus(sessions, schedule);
+    if (st.missedToday)
+      t.push("📌 Hoje é dia de treino no seu plano e ainda não há registro — bora?");
+    else if (st.missedThisWeek.length > 0)
+      t.push(
+        `📌 ${st.missedThisWeek.length} treino(s) do seu plano ficaram sem registro esta semana.`,
+      );
     if (t.length === 0) t.push("Tudo certo! Continue assim — disciplina é o caminho.");
     return t;
-  }, [sessions, selectedExId, foods, weights, radarData, profile]);
+  }, [sessions, selectedExId, foods, weights, radarData, profile, schedule]);
 
-  // Heatmap data — last 12 weeks
+  // Heatmap dos últimos 84 dias (12 semanas), começando no domingo, com 4
+  // estados: treino realizado, dia de treino sem registro (faltou), descanso
+  // planejado, e futuro. Distingue folga de falta cruzando com o cronograma.
   const heatmap = useMemo(() => {
-    const days: { date: string; count: number }[] = [];
     const trained = new Set(sessions.map((s) => s.date.slice(0, 10)));
-    const now = new Date();
-    for (let i = 83; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const start = new Date();
+    start.setDate(start.getDate() - start.getDay() - 11 * 7); // domingo, 12 semanas atrás
+    const days: { date: string; state: "trained" | "missed" | "rest" | "future" }[] = [];
+    for (let i = 0; i < 84; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
       const iso = d.toISOString().slice(0, 10);
-      days.push({ date: iso, count: trained.has(iso) ? 1 : 0 });
+      const isTrainingDay = dayGroups(schedule[d.getDay()]).length > 0;
+      let state: "trained" | "missed" | "rest" | "future";
+      if (trained.has(iso)) state = "trained";
+      else if (iso > todayIso) state = "future";
+      else if (isTrainingDay) state = "missed";
+      else state = "rest";
+      days.push({ date: iso, state });
     }
     return days;
-  }, [sessions]);
+  }, [sessions, schedule]);
+
+  // estatísticas de consistência exibidas acima da grade
+  const consistency = useMemo(() => {
+    const trainedCount = heatmap.filter((d) => d.state === "trained").length;
+    const expected = heatmap.filter((d) => d.state === "trained" || d.state === "missed").length;
+    const adherence = expected > 0 ? Math.round((trainedCount / expected) * 100) : 100;
+    return { streak: consecutiveTrainingStreak(sessions), trainedCount, adherence };
+  }, [heatmap, sessions]);
 
   if (showAssessment) {
     return (
@@ -633,23 +675,85 @@ function AnalyticsPage() {
       </Card>
 
       <Card className="mb-4">
-        <h3 className="font-semibold mb-3">Consistência (últimos 12 semanas)</h3>
-        <div className="grid grid-cols-[repeat(12,1fr)] gap-1">
-          {Array.from({ length: 12 }, (_, w) => (
-            <div key={w} className="flex flex-col gap-1">
-              {Array.from({ length: 7 }, (_, d) => {
-                const idx = w * 7 + d;
-                const day = heatmap[idx];
-                return (
-                  <div
-                    key={d}
-                    className={`aspect-square rounded-sm ${day?.count ? "bg-primary" : "bg-muted"}`}
-                    title={day?.date}
-                  />
-                );
-              })}
+        <div className="flex items-baseline justify-between flex-wrap gap-2 mb-1">
+          <h3 className="font-semibold">Consistência</h3>
+          <span className="text-xs text-muted-foreground">últimas 12 semanas</span>
+        </div>
+
+        {/* resumo em números */}
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="rounded-lg border border-border p-2 text-center">
+            <div className="text-lg font-bold text-primary tabular-nums">{consistency.streak}</div>
+            <div className="text-[10px] text-muted-foreground">dias seguidos 🔥</div>
+          </div>
+          <div className="rounded-lg border border-border p-2 text-center">
+            <div className="text-lg font-bold tabular-nums">{consistency.trainedCount}</div>
+            <div className="text-[10px] text-muted-foreground">treinos em 84 dias</div>
+          </div>
+          <div className="rounded-lg border border-border p-2 text-center">
+            <div className="text-lg font-bold text-success tabular-nums">
+              {consistency.adherence}%
             </div>
-          ))}
+            <div className="text-[10px] text-muted-foreground">adesão ao plano</div>
+          </div>
+        </div>
+
+        {/* grade com rótulos dos dias */}
+        <div className="flex gap-1">
+          <div className="flex flex-col gap-1 justify-between pr-0.5 text-[9px] text-muted-foreground">
+            {["D", "S", "T", "Q", "Q", "S", "S"].map((l, i) => (
+              <span key={i} className="h-3 leading-3">
+                {l}
+              </span>
+            ))}
+          </div>
+          <div className="grid grid-cols-[repeat(12,1fr)] gap-1 flex-1">
+            {Array.from({ length: 12 }, (_, w) => (
+              <div key={w} className="flex flex-col gap-1">
+                {Array.from({ length: 7 }, (_, d) => {
+                  const day = heatmap[w * 7 + d];
+                  if (!day) return <div key={d} className="aspect-square" />;
+                  const cls =
+                    day.state === "trained"
+                      ? "bg-success"
+                      : day.state === "missed"
+                        ? "bg-danger/60"
+                        : day.state === "rest"
+                          ? "bg-muted"
+                          : "bg-muted/40";
+                  const label =
+                    day.state === "trained"
+                      ? "treino realizado"
+                      : day.state === "missed"
+                        ? "dia de treino sem registro"
+                        : day.state === "rest"
+                          ? "descanso planejado"
+                          : "futuro";
+                  return (
+                    <div
+                      key={d}
+                      className={`aspect-square rounded-sm ${cls}`}
+                      title={`${day.date}: ${label}`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* legenda */}
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <i className="size-2.5 rounded-sm bg-success inline-block" /> Treino
+          </span>
+          <span className="flex items-center gap-1">
+            <i className="size-2.5 rounded-sm bg-danger/60 inline-block" /> Faltou (era dia de
+            treino)
+          </span>
+          <span className="flex items-center gap-1">
+            <i className="size-2.5 rounded-sm bg-muted inline-block" /> Descanso planejado
+          </span>
         </div>
       </Card>
 

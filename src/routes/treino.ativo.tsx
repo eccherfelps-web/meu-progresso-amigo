@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { Pencil, ChevronLeft, Pause, Play, RotateCcw, BellRing } from "lucide-react";
 import { playAlert, unlockAudio } from "@/lib/hlt/sound";
 import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
-import type { Profile } from "@/lib/hlt/types";
+import type { Profile, WeightLog } from "@/lib/hlt/types";
 import { checkAchievements } from "@/lib/hlt/achievements";
 
 export const Route = createFileRoute("/treino/ativo")({
@@ -38,6 +38,11 @@ function TreinoAtivo() {
   const [sessions, setSessions] = useLocalStorage<WorkoutSession[]>(KEYS.sessions, []);
   const [schedule] = useLocalStorage<WeekSchedule>(KEYS.schedule, DEFAULT_SCHEDULE);
   const [profile] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
+  const [weightLogs] = useLocalStorage<WeightLog[]>(KEYS.weights, []);
+  // peso corporal atual: último registro do histórico, ou o do perfil
+  const currentBodyweight =
+    [...weightLogs].sort((a, b) => b.date.localeCompare(a.date))[0]?.weight_kg ??
+    profile.weight_current_kg;
   const dayInfo = useMemo(
     () => (day != null ? daysFromSchedule(schedule).find((d) => d.dow === day) : undefined),
     [schedule, day],
@@ -316,7 +321,13 @@ function TreinoAtivo() {
       date: new Date().toISOString(),
       type: type as MuscleGroup,
       duration_min: duration,
-      exercises: order.map((id) => logs[id]).filter((l) => l && l.sets.length > 0),
+      exercises: order
+        .map((id) => logs[id])
+        .filter((l) => l && l.sets.length > 0)
+        .map((l) => {
+          const ex = byId.get(l.exercise_id);
+          return ex?.bodyweight ? { ...l, bodyweight: true, bodyweight_kg: currentBodyweight } : l;
+        }),
       prs,
     };
     setSessions((prev) => [...prev, session]);

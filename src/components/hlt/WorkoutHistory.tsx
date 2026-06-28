@@ -5,7 +5,7 @@ import { Card } from "@/components/hlt/Shell";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { WorkoutSession } from "@/lib/hlt/types";
 import { DOW_LABEL, DOW_SHORT } from "@/lib/hlt/defaults";
-import { epley } from "@/lib/hlt/onerm";
+import { oneRepMax } from "@/lib/hlt/onerm";
 import { Clock, Dumbbell, Trophy, ChevronRight } from "lucide-react";
 
 const GROUP_BADGE: Record<string, string> = {
@@ -101,7 +101,15 @@ function SessionDetail({
   const totalSets = sessionSets(session);
   const best1rm = Math.max(
     0,
-    ...session.exercises.flatMap((e) => e.sets.map((st) => epley(st.weight_kg, st.reps))),
+    ...session.exercises.flatMap((e) =>
+      e.sets.map((st) =>
+        oneRepMax(st.weight_kg, st.reps, {
+          bodyweight: e.bodyweight,
+          bodyweightKg: e.bodyweight_kg,
+          exerciseName: e.name,
+        }),
+      ),
+    ),
   );
 
   return (
@@ -151,7 +159,14 @@ function SessionDetail({
             return (
               <div key={e.exercise_id} className="rounded-lg border border-border p-3">
                 <div className="flex items-baseline justify-between gap-2 mb-2">
-                  <div className="font-medium text-sm">{e.name}</div>
+                  <div className="font-medium text-sm">
+                    {e.name}
+                    {e.bodyweight && (
+                      <span className="ml-1.5 text-[9px] uppercase font-bold text-info">
+                        peso corporal{e.bodyweight_kg ? ` ${e.bodyweight_kg}kg` : ""}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground tabular-nums">
                     {e.sets.length} séries · {fmt(vol)} kg
                   </div>
