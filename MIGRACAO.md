@@ -296,3 +296,59 @@ continuam funcionando.
 **Validação:** dayGroups (4 formatos), Sábado Pull+Legs com 13 exercícios na
 ordem certa, ocorrência por grupo, reordenação manual — todos testados.
 ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.8 — 1RM de exercícios de peso corporal
+
+**Problema.** Em paralela, barra fixa e flexão, a carga movida é o peso do
+corpo (+ peso extra). O 1RM antigo tratava o número digitado como carga pura,
+distorcendo a estimativa.
+
+**Solução.** Novo campo "Exercício de peso corporal" no cadastro. Quando
+marcado, o campo de carga vira o **peso adicional** (0 se for só o corpo) e o
+1RM passa a ser `epley(pesoCorporal × fração + pesoAdicional, reps)`.
+
+- A fração por exercício: paralela/barra/mergulho = 100%, flexão = 66%,
+  tríceps no banco = 40% (baseado na biomecânica de cada movimento).
+- O **peso do corpo é gravado na sessão** (do histórico de peso, ou do
+  perfil), então o 1RM histórico usa o peso da época — não o atual.
+- O catálogo já marca automaticamente os exercícios de peso corporal ao serem
+  selecionados na busca inteligente.
+- O modal de histórico mostra a etiqueta "peso corporal NNkg" no exercício.
+
+**Compatível com o passado:** sessões antigas (sem a flag) continuam
+calculando como antes; se faltar o peso corporal, degrada com segurança.
+
+**Validação:** paralela só corpo (58×14 = 85,1 kg), com extra (58+20 = 114,4),
+frações por exercício, e o caso real (95,3 kg agora significa 58 corpo + 7
+extra). ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.9 — Correções de consistência e verificação do treino ativo
+
+**Ponto 1 — treino ativo lê o plano atualizado (verificado, OK).** O treino
+ativo carrega os exercícios de forma reativa e reconstrói a lista quando os
+ids mudam e nenhuma série foi registrada ainda. Apagar/adicionar exercício e
+depois iniciar o treino daquele dia já reflete o plano novo. (Editar o plano
+no meio de um treino em andamento, com séries lançadas, é intencionalmente
+ignorado para não perder o que já foi registrado.)
+
+**Ponto 2 — streak corrigido (era bug).** A dica "7 dias sem descanso" usava
+as últimas 7 *sessões* e checava se tinham 7 datas distintas — ignorando os
+buracos. Sete treinos espalhados (com quinta e domingo de folga no meio)
+marcavam 7 indevidamente. Agora conta **dias consecutivos reais no
+calendário** (`consecutiveTrainingStreak`), que para no primeiro buraco. Além
+disso, cruzando com o cronograma, o app agora reconhece **dia de treino sem
+registro** ("hoje é dia de treino e não há registro") e folgas não contam
+como falha.
+
+**Ponto 3 — painel de Consistência reformulado.** Agora tem: três números no
+topo (dias seguidos, treinos em 84 dias, % de adesão ao plano), rótulos dos
+dias da semana, e **quatro estados distintos** com legenda — verde = treino,
+vermelho = era dia de treino e faltou, cinza = descanso planejado, e futuro.
+Antes era só "treinou / não treinou", sem distinguir folga de falta.
+
+**Validação:** streak com folgas = 3 (não 7), 7 reais = 7, para no 1º buraco,
+e detecção de dia de treino sem registro. ESLint 0 · TypeScript 0 · build ok.
