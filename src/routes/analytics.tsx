@@ -393,6 +393,7 @@ function AnalyticsPage() {
           setAssessment(a);
           toast.success("Obrigado! Análises calibradas.");
         }}
+        onSkip={() => setAssessment({ skipped: true } as unknown as Assessment)}
       />
     );
   }
@@ -957,7 +958,13 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AssessmentForm({ onSave }: { onSave: (a: Assessment) => void }) {
+function AssessmentForm({
+  onSave,
+  onSkip,
+}: {
+  onSave: (a: Assessment) => void;
+  onSkip: () => void;
+}) {
   const [a, setA] = useState<Assessment>({
     weeks_training: 12,
     progressive_overload: "sometimes",
@@ -1071,6 +1078,12 @@ function AssessmentForm({ onSave }: { onSave: (a: Assessment) => void }) {
         <Button onClick={() => onSave(a)} className="w-full">
           Salvar respostas
         </Button>
+        <button
+          onClick={onSkip}
+          className="w-full text-xs text-muted-foreground hover:text-foreground underline"
+        >
+          Pular e ver minhas análises agora
+        </button>
       </Card>
     </div>
   );

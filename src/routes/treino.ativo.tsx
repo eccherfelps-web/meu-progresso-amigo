@@ -3,6 +3,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { Card, PageHeader } from "@/components/hlt/Shell";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
 import { DEFAULT_EXERCISES, DEFAULT_SCHEDULE, daysFromSchedule } from "@/lib/hlt/defaults";
@@ -59,6 +69,8 @@ function TreinoAtivo() {
   );
 
   const [phase, setPhase] = useState<"warmup" | "workout" | "done">("warmup");
+  const [confirmFinish, setConfirmFinish] = useState(false); // finalizar no meio do treino
+  const [confirmSave, setConfirmSave] = useState(false); // salvar na tela de resumo
   const [warmupLeft, setWarmupLeft] = useState(300);
   const [startedAt] = useState(Date.now());
   const [editSet, setEditSet] = useState<{ idx: number; weight: string; reps: string } | null>(
@@ -316,18 +328,25 @@ function TreinoAtivo() {
 
   const finishWorkout = () => {
     const duration = Math.round((Date.now() - startedAt) / 60000);
+    const doneExercises = order
+      .map((id) => logs[id])
+      .filter((l) => l && l.sets.length > 0)
+      .map((l) => {
+        const ex = byId.get(l.exercise_id);
+        return ex?.bodyweight ? { ...l, bodyweight: true, bodyweight_kg: currentBodyweight } : l;
+      });
+    // não grava sessão vazia (nenhuma série registrada) — evita poluir o histórico
+    if (doneExercises.length === 0) {
+      toast.error("Nenhuma série registrada — o treino não foi salvo.");
+      navigate({ to: "/treino" });
+      return;
+    }
     const session: WorkoutSession = {
       id: `s-${Date.now()}`,
       date: new Date().toISOString(),
       type: type as MuscleGroup,
       duration_min: duration,
-      exercises: order
-        .map((id) => logs[id])
-        .filter((l) => l && l.sets.length > 0)
-        .map((l) => {
-          const ex = byId.get(l.exercise_id);
-          return ex?.bodyweight ? { ...l, bodyweight: true, bodyweight_kg: currentBodyweight } : l;
-        }),
+      exercises: doneExercises,
       prs,
     };
     setSessions((prev) => [...prev, session]);
@@ -401,13 +420,44 @@ function TreinoAtivo() {
           </Card>
         )}
         <div className="flex gap-2">
-          <Button onClick={finishWorkout} className="flex-1">
-            Salvar sessão
+          <Button onClick={() => setConfirmSave(true)} className="flex-1">
+            Salvar progresso
           </Button>
-          <Button variant="outline" onClick={() => navigate({ to: "/treino" })}>
-            Descartar
+          <Button variant="outline" onClick={() => setPhase("workout")}>
+            ← Voltar e ajustar
           </Button>
         </div>
+        <button
+          onClick={() => navigate({ to: "/treino" })}
+          className="w-full text-xs text-muted-foreground hover:text-danger underline mt-3"
+        >
+          Descartar treino sem salvar
+        </button>
+
+        {/* segunda confirmação ao salvar */}
+        <AlertDialog open={confirmSave} onOpenChange={setConfirmSave}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Salvar este treino?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {Math.round(totalVolume)} kg de volume em {duration} min
+                {prs.length > 0 ? `, com ${prs.length} novo(s) recorde(s) 🏆` : ""}. Os dados serão
+                gravados no seu histórico e sincronizados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setConfirmSave(false);
+                  finishWorkout();
+                }}
+              >
+                Confirmar e salvar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
@@ -720,7 +770,7 @@ function TreinoAtivo() {
       </div>
 
       <Button
-        onClick={() => setPhase("done")}
+        onClick={() => setConfirmFinish(true)}
         variant={isLastExercise ? "default" : "outline"}
         className={`w-full h-12 font-semibold ${isLastExercise ? "" : "text-muted-foreground"}`}
       >
@@ -729,9 +779,34 @@ function TreinoAtivo() {
       {isLastExercise && (
         <p className="text-[11px] text-muted-foreground text-center mt-2">
           <strong>Revisar ✓</strong> abre o resumo do treino (volume, recordes e duração) para você
-          conferir antes de salvar. <strong>Finalizar treino</strong> salva tudo direto.
+          conferir antes de salvar.
         </p>
       )}
+
+      {/* confirmação ao finalizar (evita toque acidental) */}
+      <AlertDialog open={confirmFinish} onOpenChange={setConfirmFinish}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Finalizar o treino?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você concluiu {doneSets} de {totalSets} séries
+              {doneSets < totalSets ? " — ainda há séries pendentes." : "."} Ao finalizar, você vai
+              para a tela de revisão, onde poderá conferir tudo antes de salvar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar treinando</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmFinish(false);
+                setPhase("done");
+              }}
+            >
+              Finalizar e revisar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

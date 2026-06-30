@@ -383,7 +383,8 @@ function PhotosSection() {
               </div>
               <button
                 onClick={() => {
-                  void removePhoto(p.id).then(refresh);
+                  if (confirm("Excluir esta foto de evolução? Esta ação não pode ser desfeita."))
+                    void removePhoto(p.id).then(refresh);
                 }}
                 className="absolute top-1 right-1 rounded bg-background/80 p-1 opacity-0 group-hover:opacity-100 transition"
                 aria-label="Excluir foto"

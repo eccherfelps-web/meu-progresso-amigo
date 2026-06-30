@@ -352,3 +352,40 @@ Antes era só "treinou / não treinou", sem distinguir folga de falta.
 
 **Validação:** streak com folgas = 3 (não 7), 7 reais = 7, para no 1º buraco,
 e detecção de dia de treino sem registro. ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.9.1 — Versão visível + acesso direto às análises
+
+- Rodapé corrigido para mostrar a versão real (estava fixo em "v1.1" desde o
+  início, mesmo com todo o código novo no ar — por isso parecia não ter
+  mudado nada).
+- A página de Análise exigia 4+ semanas de dados OU preencher o formulário de
+  calibração antes de mostrar os gráficos. Adicionado o link "Pular e ver
+  minhas análises agora" para acessar os painéis (consistência reformulada,
+  volume por músculo, equilíbrio, etc.) imediatamente.
+
+---
+
+# v1.10 — Confirmações no treino ativo + pontas soltas
+
+**Confirmações pedidas:**
+1. **Finalizar treino** (durante a sessão) agora abre um diálogo de confirmação
+   mostrando quantas séries foram concluídas (e avisa se há pendentes), evitando
+   toque acidental. Opções: "Continuar treinando" ou "Finalizar e revisar".
+2. **Revisão (tela de resumo)** ganhou o botão **"← Voltar e ajustar"**, que
+   retorna ao treino para corrigir séries/cargas sem perder nada.
+3. **Salvar progresso** abre uma segunda confirmação com o resumo (volume,
+   duração, PRs) antes de gravar. "Descartar treino sem salvar" foi movido para
+   um link discreto, separado da ação principal.
+
+**Pontas soltas corrigidas na varredura:**
+- **Treino vazio:** finalizar sem nenhuma série registrada não cria mais uma
+  sessão fantasma no histórico (avisa e descarta).
+- **Excluir foto de evolução:** agora pede confirmação (antes apagava no toque).
+- O botão "Revisar ✓" no último exercício leva ao resumo (não salva direto); a
+  legenda foi ajustada para refletir isso.
+- Reset de perfil mantém a dupla confirmação já existente.
+- Exclusão de exercício mantém o "Desfazer" via toast (já adequado).
+
+ESLint 0 · TypeScript 0 · build ok.
