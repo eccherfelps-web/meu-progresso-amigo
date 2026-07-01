@@ -18,3 +18,10 @@ create index if not exists idx_kv_updated on kv_store(device_id, updated_at);
 -- alter table kv_store enable row level security;
 -- create policy "own rows" on kv_store for all
 --   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- v1.11 — bucket para backup automático (crie no painel: Storage → New bucket
+-- → nome "backups" → Private). As políticas abaixo liberam o bucket para a
+-- chave anon (Fase 1, sem contas). Ajuste na Fase 2 com Auth/RLS.
+insert into storage.buckets (id, name, public)
+values ('backups', 'backups', false)
+on conflict (id) do nothing;

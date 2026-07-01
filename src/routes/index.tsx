@@ -10,6 +10,7 @@ import {
   dayGroups,
 } from "@/lib/hlt/defaults";
 import { dailyMacros, todayISO } from "@/lib/hlt/calc";
+import { weekComparison } from "@/lib/hlt/weeklyStats";
 import type {
   FoodLog,
   Profile,
@@ -20,7 +21,7 @@ import type {
   WeekSchedule,
 } from "@/lib/hlt/types";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-import { Dumbbell, TrendingUp, Flame, Trophy, Plus, Activity } from "lucide-react";
+import { Dumbbell, TrendingUp, Flame, Trophy, Plus, Activity, CalendarCheck } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Início — Healthy Life Tracker" }] }),
@@ -89,6 +90,8 @@ function Dashboard() {
   const cupsToday = hydration.find((h) => h.date === today)?.cups ?? 0;
   const waterGoalMl = Math.round(35 * profile.weight_current_kg);
   const waterPct = Math.min(100, Math.round((cupsToday * 250 * 100) / waterGoalMl));
+
+  const week = useMemo(() => weekComparison(sessions), [sessions]);
 
   const motivational = useMemo(() => {
     const left = profile.weight_goal_kg - profile.weight_current_kg;
@@ -162,6 +165,59 @@ function Dashboard() {
           <div className="text-xs text-muted-foreground">consecutivos</div>
         </Card>
       </div>
+
+      {/* Feature 2 — resumo desta semana vs semana passada */}
+      <Card className="mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <CalendarCheck className="size-4 text-primary" />
+            <h3 className="font-semibold">Esta semana</h3>
+            <span className="text-xs text-muted-foreground">(dom–sáb)</span>
+          </div>
+          {week.volumeDelta != null && (
+            <span
+              className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                week.volumeDelta >= 0 ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
+              }`}
+            >
+              {week.volumeDelta >= 0 ? "▲" : "▼"} {Math.abs(week.volumeDelta)}% volume vs semana
+              passada
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <WeekStat
+            label="Treinos"
+            value={String(week.current.sessions)}
+            sub={
+              week.sessionsDelta === 0
+                ? "igual à semana passada"
+                : `${week.sessionsDelta > 0 ? "+" : ""}${week.sessionsDelta} vs passada`
+            }
+          />
+          <WeekStat
+            label="Volume"
+            value={`${(week.current.volume / 1000).toFixed(1)}t`}
+            sub={`${week.current.volume.toLocaleString("pt-BR")} kg`}
+          />
+          <WeekStat
+            label="Tempo total"
+            value={`${Math.floor(week.current.durationMin / 60)}h${String(week.current.durationMin % 60).padStart(2, "0")}`}
+            sub={`${week.current.durationMin} min`}
+          />
+          <WeekStat
+            label="Recordes"
+            value={String(week.current.prs)}
+            sub={week.current.prs > 0 ? "novos PRs 🏆" : "nenhum ainda"}
+          />
+        </div>
+        {week.daysElapsed < 7 && week.current.volume > 0 && (
+          <div className="text-[11px] text-muted-foreground mt-3">
+            No ritmo atual, você fecha a semana com ~{(week.projectedVolume / 1000).toFixed(1)}t de
+            volume.
+          </div>
+        )}
+      </Card>
 
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <Card className="md:col-span-2">
@@ -287,5 +343,15 @@ function QuickAction({ to, icon, label }: { to: string; icon: React.ReactNode; l
       {icon}
       {label}
     </Link>
+  );
+}
+
+function WeekStat({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xl font-bold tabular-nums mt-0.5">{value}</div>
+      <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>
+    </div>
   );
 }

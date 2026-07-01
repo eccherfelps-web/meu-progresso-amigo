@@ -7,6 +7,7 @@ import { KEYS } from "@/lib/hlt/storage";
 import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
 import type { Profile } from "@/lib/hlt/types";
 import { startAutoSync, onSyncState, type SyncState } from "@/lib/hlt/sync";
+import { startAutoBackup } from "@/lib/hlt/autoBackup";
 import { checkAchievements } from "@/lib/hlt/achievements";
 
 const NAV = [
@@ -32,6 +33,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   // boot: liga a sincronização e verifica conquistas pendentes
   useEffect(() => {
     startAutoSync();
+    startAutoBackup();
     const off = onSyncState(setSync);
     const t = setTimeout(async () => {
       const fresh = await checkAchievements();
@@ -80,7 +82,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           );
         })}
         <div className="mt-auto px-2 text-xs text-muted-foreground flex items-center gap-1.5">
-          <syncLabel.icon className="size-3.5" /> {syncLabel.txt} · v1.10 · {profile.name}
+          <syncLabel.icon className="size-3.5" /> {syncLabel.txt} · v1.11 · {profile.name}
         </div>
       </aside>
 

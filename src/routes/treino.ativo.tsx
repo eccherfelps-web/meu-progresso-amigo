@@ -28,6 +28,9 @@ import { Trophy, Timer, Check, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { Pencil, ChevronLeft, Pause, Play, RotateCcw, BellRing } from "lucide-react";
 import { playAlert, unlockAudio } from "@/lib/hlt/sound";
+import { oneRepMax } from "@/lib/hlt/onerm";
+import { compareToLast, suggestLoad, detectStagnation } from "@/lib/hlt/progression";
+import { TrendingUp, TrendingDown, Minus, Lightbulb, AlertTriangle } from "lucide-react";
 import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
 import type { Profile, WeightLog } from "@/lib/hlt/types";
 import { checkAchievements } from "@/lib/hlt/achievements";
@@ -71,6 +74,7 @@ function TreinoAtivo() {
   const [phase, setPhase] = useState<"warmup" | "workout" | "done">("warmup");
   const [confirmFinish, setConfirmFinish] = useState(false); // finalizar no meio do treino
   const [confirmSave, setConfirmSave] = useState(false); // salvar na tela de resumo
+  const [pendingRpe, setPendingRpe] = useState<number | null>(null); // RPE da série recém-registrada
   const [warmupLeft, setWarmupLeft] = useState(300);
   const [startedAt] = useState(Date.now());
   const [editSet, setEditSet] = useState<{ idx: number; weight: string; reps: string } | null>(
@@ -210,6 +214,33 @@ function TreinoAtivo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
+  // melhor 1RM que já foi feito HOJE neste exercício (para comparar ao vivo)
+  const todayBest1rm = useMemo(() => {
+    if (!current || !currentLog?.sets.length) return undefined;
+    return Math.max(
+      ...currentLog.sets.map((st) =>
+        oneRepMax(st.weight_kg, st.reps, {
+          bodyweight: current.bodyweight,
+          bodyweightKg: currentBodyweight,
+          exerciseName: current.name,
+        }),
+      ),
+    );
+  }, [current, currentLog, currentBodyweight]);
+
+  const comparison = useMemo(
+    () => (current ? compareToLast(sessions, current.id, todayBest1rm) : null),
+    [sessions, current, todayBest1rm],
+  );
+  const stagnation = useMemo(
+    () => (current ? detectStagnation(sessions, current.id) : null),
+    [sessions, current],
+  );
+  const loadTip = useMemo(
+    () => (current ? suggestLoad(sessions, current) : null),
+    [sessions, current],
+  );
+
   if (list.length === 0) {
     return (
       <div className="p-6">
@@ -254,9 +285,23 @@ function TreinoAtivo() {
     const newPrs = recomputePrs(newLogs);
     if (newPrs.length > prs.length) toast.success("🏆 Novo recorde pessoal!");
     setPrs(newPrs);
+    setPendingRpe(currentLog.sets.length); // índice da série recém-adicionada
     setSetInput({ weight: String(w), reps: "" });
     unlockAudio();
     startRest(restPick);
+  };
+
+  // aplica o RPE escolhido à última série registrada
+  const applyRpe = (rpe: number) => {
+    if (!current || pendingRpe == null) return;
+    setLogs((prev) => ({
+      ...prev,
+      [current.id]: {
+        ...prev[current.id],
+        sets: prev[current.id].sets.map((st, i) => (i === pendingRpe ? { ...st, rpe } : st)),
+      },
+    }));
+    setPendingRpe(null);
   };
 
   // Edição de uma série já concluída (peso/reps) com recálculo automático
@@ -507,9 +552,72 @@ function TreinoAtivo() {
         <h2 className="text-xl md:text-2xl font-bold leading-tight mt-0.5">{current.name}</h2>
         <div className="text-xs text-muted-foreground mt-1">
           Meta: {current.sets} × {current.reps}
-          {current.load_kg ? ` · sugerido ${current.load_kg}kg` : ""}
           {lastUse ? ` · último: ${lastUse.weight_kg}kg × ${lastUse.reps}` : ""}
+          {comparison ? ` (há ${comparison.daysAgo}d)` : ""}
         </div>
+
+        {/* Feature 7 — sugestão de carga (dupla progressão) */}
+        {loadTip && loadTip.suggestedWeight != null && !currentLog.sets.length && (
+          <div className="mt-2 flex items-start gap-2 rounded-lg bg-info/10 border border-info/30 p-2">
+            <Lightbulb className="size-4 text-info shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <span className="font-semibold text-info">Sugestão: {loadTip.suggestedWeight}kg</span>
+              <span className="text-muted-foreground"> — {loadTip.reason}</span>
+              {loadTip.action === "subir" && (
+                <button
+                  onClick={() =>
+                    setSetInput((p) => ({ ...p, weight: String(loadTip.suggestedWeight) }))
+                  }
+                  className="ml-1 underline text-info hover:opacity-80"
+                >
+                  usar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Feature 1 — comparação ao vivo do 1RM vs última sessão */}
+        {comparison && todayBest1rm != null && currentLog.sets.length > 0 && (
+          <div
+            className={`mt-2 flex items-center gap-1.5 rounded-lg p-2 text-xs font-medium ${
+              comparison.delta > 0
+                ? "bg-success/10 text-success"
+                : comparison.delta < 0
+                  ? "bg-danger/10 text-danger"
+                  : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {comparison.delta > 0 ? (
+              <TrendingUp className="size-4" />
+            ) : comparison.delta < 0 ? (
+              <TrendingDown className="size-4" />
+            ) : (
+              <Minus className="size-4" />
+            )}
+            1RM hoje: {todayBest1rm}kg
+            {comparison.delta !== 0
+              ? ` (${comparison.delta > 0 ? "+" : ""}${comparison.delta}kg vs última: ${comparison.prev1rm}kg)`
+              : ` (igual à última: ${comparison.prev1rm}kg)`}
+          </div>
+        )}
+
+        {/* Feature 4 — alerta de estagnação */}
+        {stagnation?.stagnant && (
+          <div className="mt-2 flex items-start gap-2 rounded-lg bg-warning/10 border border-warning/30 p-2">
+            <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <span className="font-semibold text-warning">
+                Sem recorde há {stagnation.sessionsSincePr} sessões.
+              </span>
+              <span className="text-muted-foreground">
+                {" "}
+                Cargas recentes: {stagnation.recentWeights.join(", ")}kg. Considere variar reps, dar
+                um deload ou checar recuperação.
+              </span>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* ── TEMPORIZADOR DE DESCANSO (elemento principal ao descansar) ── */}
@@ -605,6 +713,46 @@ function TreinoAtivo() {
                 Pular
               </Button>
             </div>
+
+            {/* Feature 3 — RPE da série recém-concluída (opcional) */}
+            {pendingRpe != null && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="text-[11px] text-muted-foreground mb-1.5">
+                  Como foi o esforço dessa série?{" "}
+                  <span className="opacity-70">(RPE, opcional)</span>
+                </div>
+                <div className="grid grid-cols-10 gap-1">
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => applyRpe(n)}
+                      className={`h-8 rounded text-xs font-bold transition ${
+                        n <= 5
+                          ? "bg-success/15 text-success hover:bg-success/30"
+                          : n <= 8
+                            ? "bg-warning/15 text-warning hover:bg-warning/30"
+                            : "bg-danger/15 text-danger hover:bg-danger/30"
+                      }`}
+                      title={
+                        n <= 5
+                          ? "tranquilo"
+                          : n <= 8
+                            ? "desafiador"
+                            : n === 10
+                              ? "falha total"
+                              : "muito difícil"
+                      }
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between text-[9px] text-muted-foreground mt-1 px-0.5">
+                  <span>fácil</span>
+                  <span>quase falha</span>
+                </div>
+              </div>
+            )}
           </>
         ) : restDone ? (
           <div className="flex flex-col items-center gap-2">

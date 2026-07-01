@@ -22,6 +22,8 @@ import { Volume2 } from "lucide-react";
 import { Download, Upload, Trash2, Cloud, RefreshCw } from "lucide-react";
 import { syncNow, onSyncState, getLastSyncError, type SyncState } from "@/lib/hlt/sync";
 import { remoteEnabled } from "@/lib/hlt/supabase";
+import { getBackupMeta, runBackup, type BackupMeta } from "@/lib/hlt/autoBackup";
+import { HardDriveDownload } from "lucide-react";
 
 export const Route = createFileRoute("/perfil")({
   head: () => ({ meta: [{ title: "Perfil & Configurações" }] }),
@@ -223,6 +225,8 @@ function PerfilPage() {
 
       <SyncCard />
 
+      <BackupCard />
+
       <Card>
         <h3 className="font-semibold mb-2">Sobre</h3>
         <div className="text-xs text-muted-foreground space-y-1">
@@ -354,6 +358,58 @@ function SoundCard() {
             (alguns celulares limitam áudio com a tela bloqueada).
           </div>
         </>
+      )}
+    </Card>
+  );
+}
+
+function BackupCard() {
+  const [meta, setMeta] = useState<BackupMeta | null>(null);
+  const [busy, setBusy] = useState(false);
+  const enabled = remoteEnabled();
+
+  useEffect(() => {
+    void getBackupMeta().then(setMeta);
+  }, []);
+
+  const backupNow = async () => {
+    setBusy(true);
+    const res = await runBackup(true);
+    setBusy(false);
+    if (res.ok) {
+      toast.success("Backup enviado para a nuvem!");
+      void getBackupMeta().then(setMeta);
+    } else if (res.reason === "offline") {
+      toast.error("Backup requer a nuvem configurada e conexão.");
+    } else {
+      toast.error("Falha no backup: " + (res.reason ?? "erro"));
+    }
+  };
+
+  const last = meta?.lastAt ? new Date(meta.lastAt) : null;
+
+  return (
+    <Card className="mb-4 space-y-2">
+      <h3 className="font-semibold flex items-center gap-2">
+        <HardDriveDownload className="size-4" /> Backup automático
+      </h3>
+      <div className="text-xs text-muted-foreground">
+        {enabled
+          ? last
+            ? `Último backup: ${last.toLocaleDateString("pt-BR")} às ${last.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} · ${meta?.history.length ?? 0} cópias guardadas`
+            : "Nenhum backup ainda — o primeiro acontece automaticamente em segundo plano."
+          : "Requer a nuvem (Supabase) configurada. Cria cópias semanais rotativas no Storage."}
+      </div>
+      {enabled && (
+        <Button variant="outline" size="sm" onClick={backupNow} disabled={busy}>
+          <HardDriveDownload className="size-4 mr-1" /> {busy ? "Enviando…" : "Fazer backup agora"}
+        </Button>
+      )}
+      {enabled && (
+        <div className="text-[11px] text-muted-foreground">
+          Automático a cada 7 dias · mantém as 10 cópias mais recentes. Requer o bucket
+          <code> backups</code> no Supabase Storage.
+        </div>
       )}
     </Card>
   );

@@ -17,6 +17,8 @@ export const KEYS = {
   measures: "hlt_body_measures",
   achievements: "hlt_achievements",
   schedule: "hlt_week_schedule",
+  goals: "hlt_meso_goals",
+  backupMeta: "hlt_backup_meta",
 } as const;
 
 // cache compartilhado: componentes diferentes lendo a mesma chave

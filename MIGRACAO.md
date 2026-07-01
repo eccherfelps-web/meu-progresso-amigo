@@ -389,3 +389,39 @@ e detecção de dia de treino sem registro. ESLint 0 · TypeScript 0 · build ok
 - Exclusão de exercício mantém o "Desfazer" via toast (já adequado).
 
 ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.11 — 7 novas ferramentas de acompanhamento
+
+**1. Comparação treino-a-treino (treino ativo).** Ao registrar séries, o card
+do exercício mostra o 1RM de hoje vs a última sessão, com seta e cor
+(▲ verde / ▼ vermelho / = cinza) e há quantos dias foi a última vez.
+
+**2. Resumo semanal (Dashboard).** Card "Esta semana" (dom–sáb): treinos,
+volume (t e kg), tempo total e recordes, com comparação % vs semana passada e
+projeção de fechamento no ritmo atual.
+
+**3. RPE por série.** Seletor 1–10 (opcional) que aparece durante o descanso,
+colorido por intensidade. No Analytics, gráfico de RPE médio por sessão com
+linha de "zona de fadiga" — sobe com carga estável = sinal de deload.
+
+**4. Alerta de estagnação (treino ativo).** Se um exercício não bate 1RM há N
+sessões (padrão 4), um aviso mostra há quanto tempo e as cargas recentes,
+sugerindo variar reps / deload / recuperação.
+
+**5. Backup automático.** Snapshot JSON semanal para o bucket "backups" do
+Supabase Storage (rotativo, 10 cópias). Status e botão manual em Perfil →
+Backup automático. Requer criar o bucket (SQL atualizado no schema).
+
+**6. Metas de mesociclo (Analytics).** Defina alvo de 1RM de um exercício ou
+peso corporal em 4–8 semanas. Barra de progresso com marcador de "ritmo
+necessário" (linha vertical = onde deveria estar hoje), status no ritmo/atrasado
+e troféu ao bater. Conecta com a meta de peso 58→62kg.
+
+**7. Sugestão de carga (treino ativo).** Antes de digitar, o app sugere o peso
+por dupla progressão: bateu o topo da faixa de reps → subir (com botão "usar");
+ficou no meio → manter e buscar mais reps.
+
+**Validação:** testes de comparação, estagnação (detecta após 4 sessões),
+sugestão (subir/manter), semana. ESLint 0 · TypeScript 0 · build ok.

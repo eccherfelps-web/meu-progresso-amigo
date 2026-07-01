@@ -59,6 +59,8 @@ export type WeekSchedule = DaySchedule[];
 export interface WorkoutSet {
   weight_kg: number;
   reps: number;
+  /** Esforço percebido (1–10), opcional. 10 = falha total. */
+  rpe?: number;
 }
 
 export interface SessionExercise {
@@ -130,4 +132,18 @@ export interface FoodDb {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+}
+
+/** Meta de mesociclo (4–8 semanas): mira em 1RM de um exercício OU peso corporal. */
+export interface MesoGoal {
+  id: string;
+  kind: "exercise_1rm" | "bodyweight";
+  exercise_id?: string;
+  exercise_name?: string;
+  start_value: number; // 1RM ou peso no início
+  target_value: number; // alvo
+  start_date: string; // ISO
+  target_date: string; // ISO
+  created_at: string;
+  archived?: boolean;
 }

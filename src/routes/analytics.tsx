@@ -11,6 +11,7 @@ import {
   dayGroups,
 } from "@/lib/hlt/defaults";
 import { consecutiveTrainingStreak, scheduleStatus } from "@/lib/hlt/streakHelpers";
+import { MesoGoalsSection } from "@/components/hlt/MesoGoals";
 import type {
   Assessment,
   Exercise,
@@ -94,9 +95,31 @@ function AnalyticsPage() {
           }),
         ),
       );
-      return [{ date: s.date.slice(5, 10), peso: maxW, rm }];
+      const rpesArr = ex.sets.map((x) => x.rpe).filter((r): r is number => r != null);
+      const avgRpe = rpesArr.length
+        ? +(rpesArr.reduce((a, b) => a + b, 0) / rpesArr.length).toFixed(1)
+        : null;
+      return [{ date: s.date.slice(5, 10), peso: maxW, rm, rpe: avgRpe }];
     });
   }, [sessions, selectedExId]);
+
+  // Feature 3 — RPE médio por sessão (todas as sessões, para tendência de fadiga)
+  const rpeHistory = useMemo(() => {
+    return sessions
+      .map((s) => {
+        const rpes = s.exercises.flatMap((e) =>
+          e.sets.map((st) => st.rpe).filter((r): r is number => r != null),
+        );
+        return rpes.length
+          ? {
+              date: s.date.slice(5, 10),
+              rpe: +(rpes.reduce((a, b) => a + b, 0) / rpes.length).toFixed(1),
+            }
+          : null;
+      })
+      .filter((x): x is { date: string; rpe: number } => x !== null)
+      .slice(-20);
+  }, [sessions]);
 
   const best1RM = useMemo(
     () => (loadHistory.length ? Math.max(...loadHistory.map((d) => d.rm)) : 0),
@@ -405,6 +428,8 @@ function AnalyticsPage() {
         subtitle={`${sessions.length} sessões registradas · ${weeksOfData} semanas`}
       />
 
+      <MesoGoalsSection />
+
       <Card className="mb-4">
         <div className="flex items-center gap-2 mb-3">
           <Lightbulb className="size-5 text-warning" />
@@ -481,6 +506,74 @@ function AnalyticsPage() {
           )}
         </div>
       </Card>
+
+      {/* Feature 3 — RPE médio por sessão (fadiga) */}
+      {rpeHistory.length >= 2 && (
+        <Card className="mb-4">
+          <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
+            <h3 className="font-semibold">Esforço percebido (RPE)</h3>
+            <span className="text-xs text-muted-foreground">média por sessão · últimas 20</span>
+          </div>
+          <div className="text-xs text-muted-foreground mb-3">
+            RPE subindo com o mesmo volume/carga = fadiga acumulando. Bom sinal para planejar um
+            deload.
+          </div>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={rpeHistory} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--color-border)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="date"
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  domain={[0, 10]}
+                  ticks={[0, 2, 4, 6, 8, 10]}
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 10,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => [`RPE ${v}`, "esforço"]}
+                />
+                <ReferenceLine
+                  y={9}
+                  stroke="var(--color-danger)"
+                  strokeDasharray="4 3"
+                  label={{
+                    value: "zona de fadiga",
+                    fontSize: 9,
+                    fill: "var(--color-danger)",
+                    position: "insideTopRight",
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="rpe"
+                  stroke="var(--color-warning)"
+                  strokeWidth={2.5}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4 mb-4">
         <Card>
