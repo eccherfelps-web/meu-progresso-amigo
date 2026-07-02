@@ -98,6 +98,27 @@ export const EXERCISE_CATALOG: CatalogEntry[] = [
   },
   { name: "Tríceps Testa", group: "push", muscle: "Tríceps", equipment: "Barra", kind: "isolado" },
   {
+    name: "Tríceps Francês Unilateral",
+    group: "push",
+    muscle: "Tríceps",
+    equipment: "Halteres",
+    kind: "isolado",
+  },
+  {
+    name: "Crucifixo Invertido",
+    group: "push",
+    muscle: "Ombros",
+    equipment: "Halteres",
+    kind: "isolado",
+  },
+  {
+    name: "Desenvolvimento Arnold",
+    group: "push",
+    muscle: "Ombros",
+    equipment: "Halteres",
+    kind: "composto",
+  },
+  {
     name: "Mergulho nas Paralelas",
     group: "push",
     muscle: "Tríceps",

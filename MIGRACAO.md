@@ -425,3 +425,41 @@ ficou no meio → manter e buscar mais reps.
 
 **Validação:** testes de comparação, estagnação (detecta após 4 sessões),
 sugestão (subir/manter), semana. ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.12 — Análise anatômica por sub-região (Peito · Ombros · Tríceps)
+
+Nova camada de análise que vai além do grupo muscular, mapeando sub-regiões
+para evitar assimetrias ("deformação anatômica"). Baseado em biomecânica
+clássica (divisões tipo ExRx) — é estimativa educada, não eletromiografia.
+
+**Detecção inteligente por nome + ângulo** (src/lib/hlt/subMuscles.ts): em vez
+de tabela fixa por exercício (que ignoraria exercícios digitados à mão), a
+sub-região é inferida do nome. "Supino" → peito médio; "Supino inclinado" →
+peito superior; "Tríceps corda" → cabeça lateral; "Tríceps testa/francês" →
+cabeça longa; "Elevação lateral" → deltoide lateral; "Face pull / crucifixo
+invertido" → deltoide posterior. Funciona para exercícios do catálogo E
+personalizados. Validado com 100% dos exercícios reais do app.
+
+**7 sub-regiões:** Peito Superior / Médio-Inferior · Deltoide Anterior /
+Lateral / Posterior · Tríceps Cabeça Longa / Lateral-Medial.
+
+**Ativação primária + sinergia:** cada exercício conta séries "diretas" (foco)
+e "efetivas" (inclui estímulo indireto ponderado, ex.: supino inclinado dá
+bônus ao deltoide anterior e tríceps).
+
+**Mapa visual no Analytics:** barras por sub-região agrupadas por Peito/Ombros/
+Tríceps, com cor por cobertura (verde ok / amarelo baixo / vermelho zero).
+
+**Alerta de ponto cego:** quando um grupo é treinado mas uma sub-região fica
+sem trabalho direto, aviso com sugestão concreta (ex.: "0 séries de Tríceps
+Cabeça Longa — adicione Tríceps Testa ou Francês"). Só cobra sub-região se o
+grupo pai teve volume real (>=3 séries).
+
+**Catálogo expandido:** Crucifixo Invertido, Desenvolvimento Arnold e Tríceps
+Francês Unilateral adicionados (as sugestões dos alertas viram exercícios
+cadastráveis).
+
+**Validação:** detecção 16/16 nos exercícios existentes + 3/3 novos, alerta de
+ponto cego reproduzindo o caso corda-sem-testa. ESLint 0 · TypeScript 0 · build ok.
