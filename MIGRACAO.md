@@ -463,3 +463,39 @@ cadastráveis).
 
 **Validação:** detecção 16/16 nos exercícios existentes + 3/3 novos, alerta de
 ponto cego reproduzindo o caso corda-sem-testa. ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.13 — Análise anatômica do corpo inteiro + UI mais limpa
+
+**Expansão para todos os grupos.** A análise por sub-região passou de 3 grupos
+(v1.12) para o corpo inteiro — 20 sub-regiões:
+- Peito: Superior · Médio/Inferior
+- Costas: Dorsal (largura) · Trapézio/Romboides (espessura) · Lombar
+- Ombros: Deltoide Anterior · Lateral · Posterior · Trapézio Superior
+- Bíceps: Cabeça Longa · Curta · Braquial/Braquiorradial · Antebraço
+- Tríceps: Cabeça Longa · Lateral/Medial
+- Pernas: Quadríceps · Posterior · Glúteo · Panturrilha
+- Core: Abdômen
+
+Detecção por nome + ângulo/pegada, alinhada aos exercícios do sistema
+(31/31 classificados corretamente nos testes). Todas as 20 sub-regiões são
+alcançáveis por algum exercício.
+
+**Pontas soltas corrigidas:**
+- "Levantamento Terra Romeno" ia para Costas (tinha "terra") — agora vai para
+  Posterior de Coxa corretamente.
+- Rosca direta/elevação lateral genéricas agora contam como trabalho DIRETO
+  (não ficavam em nenhuma sub-região, distorcendo o alerta de ponto cego).
+- Card "Volume por músculo" (barras longas) e o novo card anatômico eram
+  redundantes: o primeiro virou "Volume por grupo" compacto (grade de números
+  com faixa 10–20), o anatômico ganhou o detalhe.
+- Variável `maxMuscleVol` órfã removida.
+
+**UI mais limpa e visual (pedido):** a análise anatômica deixou de usar barras
+longas empilhadas e passou a usar **chips compactos** por sub-região, agrupados
+por grupo pai, com cor por status (verde ok / amarelo pouco / vermelho zerado)
+e o número de séries diretas. Pontos cegos aparecem em destaque no topo com
+ícone e sugestão de exercício. Legenda enxuta no rodapé.
+
+ESLint 0 · TypeScript 0 · build ok · 31/31 exercícios · 20/20 sub-regiões.

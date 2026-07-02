@@ -12,7 +12,7 @@ import {
 } from "@/lib/hlt/defaults";
 import { consecutiveTrainingStreak, scheduleStatus } from "@/lib/hlt/streakHelpers";
 import { MesoGoalsSection } from "@/components/hlt/MesoGoals";
-import { subMuscleStats, findBlindSpots } from "@/lib/hlt/subMuscles";
+import { subMuscleStats, findBlindSpots, PARENT_ORDER } from "@/lib/hlt/subMuscles";
 import type {
   Assessment,
   Exercise,
@@ -257,7 +257,6 @@ function AnalyticsPage() {
   // volume por músculo (7 dias) + relatório de equilíbrio
   const muscleStats = useMemo(() => weeklyMuscleStats(sessions), [sessions]);
   const balance = useMemo(() => muscleBalance(muscleStats), [muscleStats]);
-  const maxMuscleVol = Math.max(1, ...muscleStats.map((m) => m.volume));
   const subMuscleData = useMemo(() => subMuscleStats(sessions), [sessions]);
   const blindSpots = useMemo(() => findBlindSpots(subMuscleData), [subMuscleData]);
 
@@ -730,138 +729,140 @@ function AnalyticsPage() {
       </div>
 
       <Card className="mb-4">
-        <h3 className="font-semibold mb-1">Volume por músculo (últimos 7 dias)</h3>
-        <div className="text-xs text-muted-foreground mb-3">
-          Séries semanais · volume total · percentual do treino
+        <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
+          <h3 className="font-semibold">Volume por grupo</h3>
+          <span className="text-xs text-muted-foreground">séries/semana · meta 10–20</span>
         </div>
         {muscleStats.length === 0 ? (
-          <Empty>Registre treinos esta semana para ver o foco real por músculo.</Empty>
+          <Empty>Registre treinos esta semana para ver o foco por grupo.</Empty>
         ) : (
-          <div className="space-y-2">
-            {muscleStats.map((m) => (
-              <div key={m.muscle}>
-                <div className="flex items-center justify-between text-xs mb-0.5">
-                  <span className="font-medium flex items-center gap-1.5">
-                    <span
-                      className={`size-1.5 rounded-full ${m.sets < 10 ? "bg-warning" : m.sets <= 20 ? "bg-success" : "bg-info"}`}
-                      title={
-                        m.sets < 10
-                          ? "Abaixo da faixa (10–20 séries/semana)"
-                          : m.sets <= 20
-                            ? "Na faixa ideal"
-                            : "Volume alto"
-                      }
-                    />
-                    {m.muscle}
-                  </span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {m.sets} séries · {m.volume.toLocaleString("pt-BR")} kg ·{" "}
-                    <span className="font-semibold text-foreground">{m.pct}%</span>
-                  </span>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {muscleStats.map((m) => {
+              const tone =
+                m.sets < 10 ? "text-warning" : m.sets <= 20 ? "text-success" : "text-info";
+              return (
+                <div
+                  key={m.muscle}
+                  className="rounded-lg border border-border px-2.5 py-2"
+                  title={
+                    m.sets < 10
+                      ? "Abaixo da faixa ideal (10–20)"
+                      : m.sets <= 20
+                        ? "Na faixa ideal"
+                        : "Volume alto"
+                  }
+                >
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs font-medium truncate">{m.muscle}</span>
+                    <span className={`text-sm font-bold tabular-nums ${tone}`}>{m.sets}</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">{m.pct}% do volume</div>
                 </div>
-                <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary"
-                    style={{ width: `${Math.max(3, (m.volume / maxMuscleVol) * 100)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
 
-      {/* Análise anatômica por sub-região (Peito · Ombros · Tríceps) */}
+      {/* Análise anatômica por sub-região — corpo inteiro */}
       <Card className="mb-4">
-        <div className="flex items-baseline justify-between flex-wrap gap-2 mb-1">
-          <h3 className="font-semibold">Análise anatômica detalhada</h3>
-          <span className="text-xs text-muted-foreground">Peito · Ombros · Tríceps · 7 dias</span>
-        </div>
-        <div className="text-xs text-muted-foreground mb-3">
-          Séries por sub-região para evitar assimetrias. "Diretas" = exercício com foco naquela
-          região; "efetivas" incluem estímulo indireto (sinergia). É uma estimativa biomecânica, não
-          medição.
+        <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
+          <h3 className="font-semibold">Análise anatômica</h3>
+          <span className="text-xs text-muted-foreground">sub-regiões · últimos 7 dias</span>
         </div>
 
-        {/* alerta de pontos cegos */}
-        {blindSpots.length > 0 ? (
-          <div className="mb-4 rounded-lg border border-warning/40 bg-warning/10 p-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-warning mb-2">
-              <AlertTriangle className="size-4" /> Pontos cegos detectados
-            </div>
-            <ul className="space-y-1">
-              {blindSpots.map((b) => (
-                <li key={b.sub} className="text-xs flex items-start gap-1.5">
-                  <span
-                    className={`mt-1 size-1.5 rounded-full shrink-0 ${b.severity === "crítico" ? "bg-danger" : "bg-warning"}`}
-                  />
-                  <span>
-                    <span className="font-medium">{b.sub}:</span> {b.message.split("—")[1]?.trim()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : subMuscleData.some((s) => s.directSets > 0) ? (
-          <div className="mb-4 rounded-lg border border-success/40 bg-success/10 p-3 text-xs text-success flex items-center gap-2">
-            <Check className="size-4" /> Cobertura equilibrada nas sub-regiões treinadas esta
-            semana. Mandou bem! 💪
-          </div>
-        ) : null}
-
-        {/* mapa por grupo pai */}
-        {(["Peito", "Ombros", "Tríceps"] as const).map((parent) => {
-          const subs = subMuscleData.filter((s) => s.parent === parent);
-          const maxEff = Math.max(1, ...subs.map((s) => s.effectiveSets));
-          const total = subs.reduce((a, s) => a + s.directSets, 0);
-          if (total === 0) return null;
-          return (
-            <div key={parent} className="mb-3 last:mb-0">
-              <div className="text-xs font-semibold mb-1.5">{parent}</div>
-              <div className="space-y-2">
-                {subs.map((s) => {
-                  const isBlind = blindSpots.some((b) => b.sub === s.sub);
-                  return (
-                    <div key={s.sub}>
-                      <div className="flex items-center justify-between text-xs mb-0.5">
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            className={`size-1.5 rounded-full ${
-                              s.directSets === 0
-                                ? "bg-danger"
-                                : s.directSets < 2
-                                  ? "bg-warning"
-                                  : "bg-success"
-                            }`}
-                          />
-                          {s.sub.replace(`${parent} `, "").replace(parent, "").trim() || s.sub}
-                        </span>
-                        <span className="text-muted-foreground tabular-nums">
-                          {s.directSets} diretas · {s.effectiveSets} efetivas
-                          {isBlind && <span className="text-danger"> ⚠</span>}
-                        </span>
-                      </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            s.directSets === 0
-                              ? "bg-danger/50"
-                              : s.directSets < 2
-                                ? "bg-warning"
-                                : "bg-gradient-to-r from-primary/70 to-primary"
-                          }`}
-                          style={{ width: `${Math.max(4, (s.effectiveSets / maxEff) * 100)}%` }}
-                        />
-                      </div>
+        {subMuscleData.every((s) => s.directSets === 0) ? (
+          <Empty>Treine esta semana para ver a cobertura por região muscular.</Empty>
+        ) : (
+          <>
+            {/* pontos cegos — só o essencial, em destaque */}
+            {blindSpots.length > 0 ? (
+              <div className="mb-4 space-y-1.5">
+                {blindSpots.map((b) => (
+                  <div
+                    key={b.sub}
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs ${
+                      b.severity === "crítico"
+                        ? "bg-danger/10 border border-danger/30"
+                        : "bg-warning/10 border border-warning/25"
+                    }`}
+                  >
+                    <span
+                      className={`shrink-0 size-6 rounded-full grid place-items-center text-[11px] ${
+                        b.severity === "crítico"
+                          ? "bg-danger/20 text-danger"
+                          : "bg-warning/20 text-warning"
+                      }`}
+                    >
+                      {b.severity === "crítico" ? "!" : "~"}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="font-semibold">{b.sub}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        {b.directSets === 0 ? "sem trabalho direto" : `só ${b.directSets} série`} —
+                        adicione {b.fix}
+                      </span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
+            ) : (
+              <div className="mb-4 flex items-center gap-2 rounded-lg bg-success/10 border border-success/30 px-3 py-2 text-xs text-success">
+                <Check className="size-4 shrink-0" /> Cobertura equilibrada nas regiões treinadas.
+                Mandou bem! 💪
+              </div>
+            )}
+
+            {/* mapa compacto por grupo — chips, não barras longas */}
+            <div className="space-y-3">
+              {PARENT_ORDER.map((parent) => {
+                const subs = subMuscleData.filter((s) => s.parent === parent);
+                if (subs.reduce((a, s) => a + s.directSets, 0) === 0) return null;
+                return (
+                  <div key={parent}>
+                    <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                      {parent}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {subs.map((s) => {
+                        const short = s.sub.replace(/^(Peito|Tríceps|Bíceps|Deltoide) /, "");
+                        const tone =
+                          s.directSets === 0
+                            ? "bg-danger/10 text-danger border-danger/30"
+                            : s.directSets < 2
+                              ? "bg-warning/10 text-warning border-warning/30"
+                              : "bg-success/10 text-success border-success/30";
+                        return (
+                          <div
+                            key={s.sub}
+                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${tone}`}
+                            title={`${s.sub}: ${s.directSets} séries diretas · ${s.effectiveSets} efetivas (com sinergia)`}
+                          >
+                            <span className="font-medium">{short}</span>
+                            <span className="tabular-nums opacity-80">{s.directSets}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-        {subMuscleData.every((s) => s.directSets === 0) && (
-          <Empty>Treine peito, ombros ou tríceps esta semana para ver a análise anatômica.</Empty>
+
+            <div className="mt-3 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <i className="size-2 rounded-full bg-success inline-block" /> ok (2+)
+              </span>
+              <span className="flex items-center gap-1">
+                <i className="size-2 rounded-full bg-warning inline-block" /> pouco (1)
+              </span>
+              <span className="flex items-center gap-1">
+                <i className="size-2 rounded-full bg-danger inline-block" /> zerado
+              </span>
+              <span className="ml-auto">nº = séries diretas · estimativa biomecânica</span>
+            </div>
+          </>
         )}
       </Card>
 
