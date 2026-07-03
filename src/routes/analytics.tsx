@@ -12,7 +12,13 @@ import {
 } from "@/lib/hlt/defaults";
 import { consecutiveTrainingStreak, scheduleStatus } from "@/lib/hlt/streakHelpers";
 import { MesoGoalsSection } from "@/components/hlt/MesoGoals";
-import { subMuscleStats, findBlindSpots, PARENT_ORDER } from "@/lib/hlt/subMuscles";
+import {
+  subMuscleStats,
+  findBlindSpots,
+  PARENT_ORDER,
+  SUB_EXERCISES,
+  type SubMuscle,
+} from "@/lib/hlt/subMuscles";
 import type {
   Assessment,
   Exercise,
@@ -51,7 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Lightbulb, Trophy, Check, AlertTriangle } from "lucide-react";
+import { Lightbulb, Trophy, Check, AlertTriangle, ChevronDown } from "lucide-react";
 import { oneRepMax } from "@/lib/hlt/onerm";
 import { ACHIEVEMENTS, type UnlockedAchievement } from "@/lib/hlt/achievements";
 import { toast } from "sonner";
@@ -257,6 +263,7 @@ function AnalyticsPage() {
   // volume por músculo (7 dias) + relatório de equilíbrio
   const muscleStats = useMemo(() => weeklyMuscleStats(sessions), [sessions]);
   const balance = useMemo(() => muscleBalance(muscleStats), [muscleStats]);
+  const [openSub, setOpenSub] = useState<SubMuscle | null>(null);
   const subMuscleData = useMemo(() => subMuscleStats(sessions), [sessions]);
   const blindSpots = useMemo(() => findBlindSpots(subMuscleData), [subMuscleData]);
 
@@ -814,7 +821,7 @@ function AnalyticsPage() {
               </div>
             )}
 
-            {/* mapa compacto por grupo — chips, não barras longas */}
+            {/* mapa por grupo — clique numa sub-região para ver exercícios */}
             <div className="space-y-3">
               {PARENT_ORDER.map((parent) => {
                 const subs = subMuscleData.filter((s) => s.parent === parent);
@@ -827,6 +834,7 @@ function AnalyticsPage() {
                     <div className="flex flex-wrap gap-1.5">
                       {subs.map((s) => {
                         const short = s.sub.replace(/^(Peito|Tríceps|Bíceps|Deltoide) /, "");
+                        const open = openSub === s.sub;
                         const tone =
                           s.directSets === 0
                             ? "bg-danger/10 text-danger border-danger/30"
@@ -834,17 +842,44 @@ function AnalyticsPage() {
                               ? "bg-warning/10 text-warning border-warning/30"
                               : "bg-success/10 text-success border-success/30";
                         return (
-                          <div
+                          <button
                             key={s.sub}
-                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${tone}`}
-                            title={`${s.sub}: ${s.directSets} séries diretas · ${s.effectiveSets} efetivas (com sinergia)`}
+                            onClick={() => setOpenSub(open ? null : s.sub)}
+                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${tone} ${open ? "ring-2 ring-primary/40" : ""}`}
+                            title={`${s.effectiveSets} séries efetivas (com sinergia) · toque para ver exercícios`}
+                            aria-expanded={open}
                           >
                             <span className="font-medium">{short}</span>
                             <span className="tabular-nums opacity-80">{s.directSets}</span>
-                          </div>
+                            <ChevronDown
+                              className={`size-3 transition-transform ${open ? "rotate-180" : ""}`}
+                            />
+                          </button>
                         );
                       })}
                     </div>
+
+                    {/* accordion: exercícios da sub-região aberta (se for deste grupo) */}
+                    {openSub && subs.some((s) => s.sub === openSub) && (
+                      <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                        <div className="text-xs font-semibold mb-1.5">
+                          Exercícios para {openSub}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {SUB_EXERCISES[openSub].map((ex) => (
+                            <span
+                              key={ex}
+                              className="rounded-md bg-card border border-border px-2 py-1 text-[11px]"
+                            >
+                              {ex}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-2">
+                          Cadastre um destes no seu plano (aba Treino) para cobrir esta região.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

@@ -10,6 +10,7 @@ import {
   dayGroups,
 } from "@/lib/hlt/defaults";
 import { dailyMacros, todayISO } from "@/lib/hlt/calc";
+import { consecutiveTrainingStreak } from "@/lib/hlt/streakHelpers";
 import { weekComparison } from "@/lib/hlt/weeklyStats";
 import type {
   FoodLog,
@@ -67,25 +68,9 @@ function Dashboard() {
   const prevWeight = weights[weights.length - 2];
   const trend = lastWeight && prevWeight ? lastWeight.weight_kg - prevWeight.weight_kg : 0;
 
-  // streak
-  const streak = useMemo(() => {
-    const dates = new Set<string>();
-    sessions.forEach((s) => dates.add(s.date.slice(0, 10)));
-    foods.forEach(
-      (f) => f.meals && Object.values(f.meals).some((x) => x.length) && dates.add(f.date),
-    );
-    weights.forEach((w) => dates.add(w.date));
-    let n = 0;
-    const d = new Date();
-    while (true) {
-      const iso = d.toISOString().slice(0, 10);
-      if (dates.has(iso)) {
-        n++;
-        d.setDate(d.getDate() - 1);
-      } else break;
-    }
-    return n;
-  }, [sessions, foods, weights]);
+  // streak de treino — dias consecutivos treinando (tolera "hoje ainda não
+  // treinei", conta até o primeiro buraco real no calendário)
+  const streak = useMemo(() => consecutiveTrainingStreak(sessions), [sessions]);
 
   const cupsToday = hydration.find((h) => h.date === today)?.cups ?? 0;
   const waterGoalMl = Math.round(35 * profile.weight_current_kg);

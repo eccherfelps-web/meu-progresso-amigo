@@ -499,3 +499,20 @@ e o número de séries diretas. Pontos cegos aparecem em destaque no topo com
 ícone e sugestão de exercício. Legenda enxuta no rodapé.
 
 ESLint 0 · TypeScript 0 · build ok · 31/31 exercícios · 20/20 sub-regiões.
+
+---
+
+# v1.14 — Accordion de exercícios, streak corrigido, explicações
+
+**Ponto 3 — streak do Dashboard corrigido.** O card "Streak" usava uma lógica
+própria que exigia atividade HOJE para contar — se você treinou ontem e
+anteontem mas ainda não fez nada hoje, mostrava 0. Agora usa
+`consecutiveTrainingStreak` (a mesma do painel de Consistência), que tolera
+"hoje ainda não treinei" e conta os dias consecutivos de treino reais até o
+primeiro buraco. Também passou a contar só treino (antes misturava treino +
+refeição + peso, inflando o número).
+
+**Ponto 2 — accordion na análise anatômica.** Cada sub-região agora é
+clicável: toca e expande abaixo uma lista de exercícios sugeridos para aquele
+músculo (SUB_EXERCISES, 3–4 por região); toca de novo e recolhe. Seta que gira
+indica o estado. Só uma aberta por vez, mantendo a interface limpa.

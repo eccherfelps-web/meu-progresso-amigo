@@ -82,7 +82,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           );
         })}
         <div className="mt-auto px-2 text-xs text-muted-foreground flex items-center gap-1.5">
-          <syncLabel.icon className="size-3.5" /> {syncLabel.txt} · v1.13 · {profile.name}
+          <syncLabel.icon className="size-3.5" /> {syncLabel.txt} · v1.14 · {profile.name}
         </div>
       </aside>
 

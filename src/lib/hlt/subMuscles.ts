@@ -309,6 +309,66 @@ export interface BlindSpot {
 }
 
 // Sugestões concretas de exercício por sub-região negligenciada.
+// Lista de exercícios sugeridos por sub-região (para o accordion na UI).
+export const SUB_EXERCISES: Record<SubMuscle, string[]> = {
+  "Peito Superior": [
+    "Supino Inclinado com Halteres",
+    "Supino Inclinado com Barra",
+    "Crucifixo Inclinado",
+    "Crossover de baixo para cima",
+  ],
+  "Peito Médio/Inferior": [
+    "Supino Reto com Barra",
+    "Supino Reto com Halteres",
+    "Crossover",
+    "Mergulho nas Paralelas",
+  ],
+  "Dorsal (Largura)": ["Barra Fixa", "Puxada Alta (Pulley)", "Pullover", "Puxada pegada aberta"],
+  "Trapézio/Romboides (Espessura)": [
+    "Remada Curvada",
+    "Remada Baixa (Triângulo)",
+    "Remada Unilateral (Serrote)",
+    "Remada Cavalinho",
+  ],
+  Lombar: ["Levantamento Terra", "Stiff", "Hiperextensão (banco romano)"],
+  "Deltoide Anterior": ["Desenvolvimento Militar", "Desenvolvimento Arnold", "Elevação Frontal"],
+  "Deltoide Lateral": [
+    "Elevação Lateral",
+    "Elevação Lateral no Cabo",
+    "Remada Alta (pegada aberta)",
+  ],
+  "Deltoide Posterior": [
+    "Face Pull",
+    "Crucifixo Invertido",
+    "Voador Invertido (peck deck)",
+    "Remada Alta na corda",
+  ],
+  "Trapézio Superior": ["Encolhimento de Ombros", "Encolhimento com Halteres"],
+  "Bíceps Cabeça Longa": [
+    "Rosca no banco inclinado",
+    "Rosca Direta em pé",
+    "Rosca Barra (pegada fechada)",
+  ],
+  "Bíceps Cabeça Curta": ["Rosca Scott", "Rosca Concentrada", "Rosca no cabo (pegada aberta)"],
+  "Braquial/Braquiorradial": ["Rosca Martelo", "Rosca Inversa (pronada)"],
+  "Antebraço (Flexores)": ["Rosca de Punho", "Farmer's Walk", "Prancha com pegada"],
+  "Tríceps Cabeça Longa": [
+    "Tríceps Testa",
+    "Tríceps Francês",
+    "Extensão de Tríceps acima da cabeça",
+  ],
+  "Tríceps Lateral/Medial": [
+    "Tríceps Corda (pulley)",
+    "Tríceps Pulley pegada pronada",
+    "Mergulho no banco",
+  ],
+  Quadríceps: ["Agachamento Livre", "Leg Press 45", "Cadeira Extensora", "Afundo (Passada)"],
+  "Posterior de Coxa": ["Stiff", "Mesa Flexora", "Levantamento Terra Romeno", "Cadeira Flexora"],
+  Glúteo: ["Hip Thrust", "Agachamento Búlgaro", "Elevação Pélvica", "Coice no Cabo"],
+  Panturrilha: ["Panturrilha em Pé", "Panturrilha Sentado", "Panturrilha no Leg Press"],
+  Abdômen: ["Prancha", "Abdominal Supra", "Elevação de Pernas", "Abdominal na Roda"],
+};
+
 const FIX: Record<SubMuscle, string> = {
   "Peito Superior": "Supino Inclinado (halteres ou barra)",
   "Peito Médio/Inferior": "Supino Reto ou Crossover",
