@@ -7,6 +7,7 @@ import {
   DEFAULT_SCHEDULE,
   DOW_SHORT,
   daysFromSchedule,
+  DOW_LABEL,
   dayGroups,
   exercisesForDay,
   type TrainingDay,
@@ -30,6 +31,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/treino/")({
@@ -143,16 +145,87 @@ function TreinoPage() {
 
   // ── editor do cronograma: liga/desliga grupos por dia (múltiplos!) ──
   const [editWeek, setEditWeek] = useState(false);
+  const [variationPick, setVariationPick] = useState<{
+    dow: number;
+    group: "push" | "pull" | "legs";
+    variations: number[];
+  } | null>(null);
 
   const toggleGroup = (dow: number, group: "push" | "pull" | "legs") => {
+    const current = dayGroups(schedule[dow]);
+    const has = current.includes(group);
+    // desligar: sempre direto
+    if (has) {
+      applyGroupToDay(dow, group, false);
+      return;
+    }
+    // ligar: verifica se o grupo tem variações (slots distintos) cadastradas
+    const slots = new Set(
+      exercises.filter((e) => e.group === group && e.slot != null).map((e) => e.slot as number),
+    );
+    if (slots.size >= 1) {
+      // há exercícios "presos" a dias específicos → oferece escolher a variação
+      const variations = [...slots].sort((a, b) => a - b);
+      setVariationPick({ dow, group, variations });
+    } else {
+      applyGroupToDay(dow, group, true);
+    }
+  };
+
+  // aplica (liga/desliga) um grupo a um dia
+  const applyGroupToDay = (dow: number, group: "push" | "pull" | "legs", turnOn: boolean) => {
     setSchedule((prev) => {
       const next = [...prev] as WeekSchedule;
       const current = dayGroups(next[dow]);
-      const has = current.includes(group);
-      const updated = has ? current.filter((g) => g !== group) : [...current, group];
+      const updated = turnOn ? [...current, group] : current.filter((g) => g !== group);
       next[dow] = updated.length === 0 ? "rest" : updated.length === 1 ? updated[0] : updated;
       return next;
     });
+  };
+
+  // confirma a variação escolhida no modal: liga o grupo no dia e garante que a
+  // ocorrência daquele dia corresponda à variação (slot) selecionada.
+  const confirmVariation = (slot: number) => {
+    if (!variationPick) return;
+    const { dow, group } = variationPick;
+    // liga o grupo no dia
+    setSchedule((prev) => {
+      const next = [...prev] as WeekSchedule;
+      const current = dayGroups(next[dow]);
+      const updated = [...current, group];
+      next[dow] = updated.length === 1 ? updated[0] : updated;
+      return next;
+    });
+    // reposiciona: para que este novo dia use a variação escolhida, ajusta os
+    // slots dos exercícios do grupo para que a ocorrência deste dia bata com o slot.
+    // Como a ocorrência é derivada da ordem semanal, marcamos os exercícios da
+    // variação escolhida para também aparecerem nesta nova ocorrência.
+    const targetSlots = new Set(
+      exercises.filter((e) => e.group === group && e.slot === slot).map((e) => e.id),
+    );
+    if (targetSlots.size > 0) {
+      // calcula a ocorrência que este dia terá na nova grade
+      const withDay = [...schedule] as WeekSchedule;
+      const cur = dayGroups(withDay[dow]);
+      withDay[dow] = [...cur, group].length === 1 ? group : [...cur, group];
+      const newDays = daysFromSchedule(withDay);
+      const thisDay = newDays.find((d) => d.dow === dow);
+      const newOcc = thisDay?.occ[group];
+      if (newOcc != null && newOcc !== slot) {
+        // duplica os exercícios da variação escolhida para a nova ocorrência,
+        // assim eles aparecem neste dia sem remover da variação original
+        setExercises((prev) => {
+          const clones = prev
+            .filter((e) => targetSlots.has(e.id))
+            .map((e) => ({ ...e, id: `${e.id}-v${newOcc}-${Date.now()}`, slot: newOcc }));
+          return [...prev, ...clones];
+        });
+        toast.success(`Variação ${slot + 1} de ${group.toUpperCase()} copiada para o novo dia.`);
+      } else {
+        toast.success(`${group.toUpperCase()} adicionado usando a variação ${slot + 1}.`);
+      }
+    }
+    setVariationPick(null);
   };
 
   const weeksTraining = Math.min(8, Math.floor(sessions.length / 5));
@@ -425,6 +498,43 @@ function TreinoPage() {
         recents={recents}
         onSave={saveExercise}
       />
+
+      {/* Atribuição Inteligente: escolher variação do grupo ao adicionar a um dia */}
+      <Dialog open={variationPick != null} onOpenChange={(o) => !o && setVariationPick(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Qual variação de {variationPick ? GROUP_SHORT[variationPick.group] : ""} você quer
+              usar?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-xs text-muted-foreground mb-1">
+            Este grupo tem exercícios organizados em variações (dias diferentes). Escolha qual usar
+            em {variationPick ? DOW_LABEL[variationPick.dow] : ""}.
+          </div>
+          <div className="space-y-2">
+            {variationPick?.variations.map((slot) => {
+              const exs = exercises.filter(
+                (e) => e.group === variationPick.group && e.slot === slot,
+              );
+              return (
+                <button
+                  key={slot}
+                  onClick={() => confirmVariation(slot)}
+                  className="w-full text-left rounded-lg border border-border hover:border-primary hover:bg-accent p-3 transition"
+                >
+                  <div className="font-semibold text-sm">
+                    {GROUP_SHORT[variationPick.group]} — Variação {slot + 1}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                    {exs.length > 0 ? exs.map((e) => e.name).join(", ") : "sem exercícios"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

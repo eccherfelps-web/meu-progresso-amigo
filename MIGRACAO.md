@@ -516,3 +516,27 @@ refeição + peso, inflando o número).
 clicável: toca e expande abaixo uma lista de exercícios sugeridos para aquele
 músculo (SUB_EXERCISES, 3–4 por região); toca de novo e recolhe. Seta que gira
 indica o estado. Só uma aberta por vez, mantendo a interface limpa.
+
+---
+
+# v1.15 — Dropdown sem duplicatas, heatmap correto, atribuição inteligente
+
+**1. Progressão de carga sem nomes repetidos.** O dropdown listava todos os
+exercícios de `exercises` — e quando há variações do mesmo grupo (Push A/Push B)
+ou duplicatas de edições antigas, o mesmo nome aparecia várias vezes. Agora a
+lista é deduplicada por nome, mantendo, entre os homônimos, o exercício com mais
+sessões no histórico (o mais relevante para o gráfico).
+
+**2. Heatmap de consistência não reescreve o passado.** Ao marcar um novo dia de
+treino (ex.: quinta), o cronograma ATUAL era aplicado retroativamente a todas as
+quintas passadas, pintando de vermelho ("faltou") dias que na época eram
+descanso. Corrigido: só a SEMANA ATUAL pode marcar "faltou" (onde o cronograma
+vigente realmente se aplica); dias passados sem treino são apenas "descanso".
+
+**3. Atribuição Inteligente de Treino.** Ao ligar um grupo num dia pelo editor de
+semana, se o grupo tiver variações (exercícios com `slot` distintos), abre um
+modal "Qual variação de X você deseja usar?" listando cada variação com seus
+exercícios. Ao escolher, o dia é vinculado à variação (clonando os exercícios da
+variação para a nova ocorrência quando necessário, sem afetar a original).
+
+ESLint 0 · TypeScript 0 · build ok.

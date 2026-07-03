@@ -265,6 +265,25 @@ function AnalyticsPage() {
   const balance = useMemo(() => muscleBalance(muscleStats), [muscleStats]);
   const [openSub, setOpenSub] = useState<SubMuscle | null>(null);
   const subMuscleData = useMemo(() => subMuscleStats(sessions), [sessions]);
+
+  // Lista de exercícios para o gráfico de progressão, sem nomes repetidos.
+  // Exercícios com o mesmo nome (ex.: "Supino" em Push A e Push B, ou duplicados
+  // por edições antigas) são agrupados: fica o que tem mais sessões no histórico.
+  const progressionOptions = useMemo(() => {
+    const sessionCount = new Map<string, number>();
+    for (const s of sessions)
+      for (const ex of s.exercises)
+        sessionCount.set(ex.exercise_id, (sessionCount.get(ex.exercise_id) ?? 0) + 1);
+    const byName = new Map<string, Exercise>();
+    for (const e of exercises) {
+      const key = e.name.trim().toLowerCase();
+      const cur = byName.get(key);
+      if (!cur || (sessionCount.get(e.id) ?? 0) > (sessionCount.get(cur.id) ?? 0)) {
+        byName.set(key, e);
+      }
+    }
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [exercises, sessions]);
   const blindSpots = useMemo(() => findBlindSpots(subMuscleData), [subMuscleData]);
 
   // % de cada grupo no volume dos últimos 7 dias
@@ -386,12 +405,21 @@ function AnalyticsPage() {
     return t;
   }, [sessions, selectedExId, foods, weights, radarData, profile, schedule]);
 
-  // Heatmap dos últimos 84 dias (12 semanas), começando no domingo, com 4
-  // estados: treino realizado, dia de treino sem registro (faltou), descanso
-  // planejado, e futuro. Distingue folga de falta cruzando com o cronograma.
+  // Heatmap dos últimos 84 dias (12 semanas), começando no domingo.
+  // Estados: treino realizado, dia de treino sem registro (só na SEMANA ATUAL,
+  // onde o cronograma vigente se aplica), descanso, e futuro.
+  // Importante: NÃO marcamos "faltou" no passado — o cronograma de hoje não
+  // valia necessariamente semanas atrás, então dias passados sem treino são
+  // apenas "descanso" (evita pintar de vermelho retroativamente ao mudar o plano).
   const heatmap = useMemo(() => {
     const trained = new Set(sessions.map((s) => s.date.slice(0, 10)));
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const todayIso = now.toISOString().slice(0, 10);
+    // início da semana atual (domingo) — só a partir daqui "faltou" faz sentido
+    const currentWeekStart = new Date(now);
+    currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+    const curWeekIso = currentWeekStart.toISOString().slice(0, 10);
+
     const start = new Date();
     start.setDate(start.getDate() - start.getDay() - 11 * 7); // domingo, 12 semanas atrás
     const days: { date: string; state: "trained" | "missed" | "rest" | "future" }[] = [];
@@ -399,12 +427,17 @@ function AnalyticsPage() {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
       const iso = d.toISOString().slice(0, 10);
-      const isTrainingDay = dayGroups(schedule[d.getDay()]).length > 0;
       let state: "trained" | "missed" | "rest" | "future";
-      if (trained.has(iso)) state = "trained";
-      else if (iso > todayIso) state = "future";
-      else if (isTrainingDay) state = "missed";
-      else state = "rest";
+      if (trained.has(iso)) {
+        state = "trained";
+      } else if (iso > todayIso) {
+        state = "future";
+      } else if (iso >= curWeekIso && dayGroups(schedule[d.getDay()]).length > 0) {
+        // só a semana atual pode marcar "faltou", pois o cronograma é o de agora
+        state = "missed";
+      } else {
+        state = "rest";
+      }
       days.push({ date: iso, state });
     }
     return days;
@@ -470,7 +503,7 @@ function AnalyticsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {exercises.map((e) => (
+              {progressionOptions.map((e) => (
                 <SelectItem key={e.id} value={e.id}>
                   {e.name}
                 </SelectItem>
