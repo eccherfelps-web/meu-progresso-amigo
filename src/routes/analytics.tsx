@@ -19,6 +19,7 @@ import {
   SUB_EXERCISES,
   type SubMuscle,
 } from "@/lib/hlt/subMuscles";
+import { rpeVolumeByExercise, rpeVolumeInsight } from "@/lib/hlt/progression";
 import type {
   Assessment,
   Exercise,
@@ -57,7 +58,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Lightbulb, Trophy, Check, AlertTriangle, ChevronDown } from "lucide-react";
+import { Lightbulb, Trophy, Check, AlertTriangle, ChevronDown, TrendingUp } from "lucide-react";
 import { oneRepMax } from "@/lib/hlt/onerm";
 import { ACHIEVEMENTS, type UnlockedAchievement } from "@/lib/hlt/achievements";
 import { toast } from "sonner";
@@ -265,7 +266,31 @@ function AnalyticsPage() {
   const balance = useMemo(() => muscleBalance(muscleStats), [muscleStats]);
   const [openSub, setOpenSub] = useState<SubMuscle | null>(null);
   const [openTip, setOpenTip] = useState<number | null>(null);
+  const [rpeExId, setRpeExId] = useState<string>("");
   const subMuscleData = useMemo(() => subMuscleStats(sessions), [sessions]);
+
+  // Exercícios que têm ao menos uma série com RPE registrado (para o seletor)
+  const rpeExerciseOptions = useMemo(() => {
+    const withRpe = new Map<string, string>();
+    for (const s of sessions)
+      for (const ex of s.exercises)
+        if (ex.sets.some((st) => st.rpe != null)) withRpe.set(ex.exercise_id, ex.name);
+    return [...withRpe.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [sessions]);
+
+  const effectiveRpeExId = rpeExId || rpeExerciseOptions[0]?.id || "";
+  const rpeByExercise = useMemo(
+    () => (effectiveRpeExId ? rpeVolumeByExercise(sessions, effectiveRpeExId) : []),
+    [sessions, effectiveRpeExId],
+  );
+  const rpeInsight = useMemo(() => rpeVolumeInsight(rpeByExercise), [rpeByExercise]);
+  const criticalSeries = useMemo(
+    () =>
+      rpeByExercise.flatMap((p) => p.criticalSets.map((c) => ({ dateLabel: p.dateLabel, ...c }))),
+    [rpeByExercise],
+  );
 
   // Lista de exercícios para o gráfico de progressão, sem nomes repetidos.
   // Exercícios com o mesmo nome (ex.: "Supino" em Push A e Push B, ou duplicados
@@ -600,71 +625,178 @@ function AnalyticsPage() {
         </div>
       </Card>
 
-      {/* Feature 3 — RPE médio por sessão (fadiga) */}
-      {rpeHistory.length >= 2 && (
+      {/* Análise micro de RPE por exercício (carga × esforço, série crítica) */}
+      {rpeByExercise.length >= 1 && (
         <Card className="mb-4">
-          <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
-            <h3 className="font-semibold">Esforço percebido (RPE)</h3>
-            <span className="text-xs text-muted-foreground">média por sessão · últimas 20</span>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <h3 className="font-semibold">Esforço × Carga por exercício</h3>
+            <Select value={effectiveRpeExId} onValueChange={setRpeExId}>
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Escolher exercício" />
+              </SelectTrigger>
+              <SelectContent>
+                {rpeExerciseOptions.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="text-xs text-muted-foreground mb-3">
-            RPE subindo com o mesmo volume/carga = fadiga acumulando. Bom sinal para planejar um
-            deload.
+            RPE médio (linha) cruzado com o volume do dia (barras). Volume estável + RPE caindo =
+            ganho de força; volume estável + RPE subindo = fadiga acumulando.
           </div>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={rpeHistory} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--color-border)"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="date"
-                  stroke="var(--color-muted-foreground)"
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  domain={[0, 10]}
-                  ticks={[0, 2, 4, 6, 8, 10]}
-                  stroke="var(--color-muted-foreground)"
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--color-card)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 10,
-                    fontSize: 12,
-                  }}
-                  formatter={(v: number) => [`RPE ${v}`, "esforço"]}
-                />
-                <ReferenceLine
-                  y={9}
-                  stroke="var(--color-danger)"
-                  strokeDasharray="4 3"
-                  label={{
-                    value: "zona de fadiga",
-                    fontSize: 9,
-                    fill: "var(--color-danger)",
-                    position: "insideTopRight",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="rpe"
-                  stroke="var(--color-warning)"
-                  strokeWidth={2.5}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+
+          {rpeByExercise.filter((p) => p.avgRpe != null).length < 1 ? (
+            <Empty>Registre RPE neste exercício para ver a análise.</Empty>
+          ) : (
+            <>
+              {rpeInsight && (
+                <div className="mb-3 flex items-start gap-2 rounded-lg bg-info/10 border border-info/25 px-3 py-2 text-xs">
+                  <TrendingUp className="size-4 text-info shrink-0 mt-0.5" />
+                  <span>{rpeInsight}</span>
+                </div>
+              )}
+
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={rpeByExercise}
+                    margin={{ top: 8, right: 8, left: -18, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--color-border)"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="dateLabel"
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      yAxisId="rpe"
+                      domain={[0, 10]}
+                      ticks={[0, 2, 4, 6, 8, 10]}
+                      stroke="var(--color-warning)"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      yAxisId="vol"
+                      orientation="right"
+                      stroke="var(--color-primary)"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      width={44}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--color-card)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 10,
+                        fontSize: 12,
+                      }}
+                      formatter={(v: number, name: string) =>
+                        name === "avgRpe"
+                          ? [`RPE ${v}`, "esforço médio"]
+                          : [`${Number(v).toLocaleString("pt-BR")} kg`, "volume"]
+                      }
+                    />
+                    <ReferenceLine
+                      yAxisId="rpe"
+                      y={9.5}
+                      stroke="var(--color-danger)"
+                      strokeDasharray="4 3"
+                      label={{
+                        value: "crítico",
+                        fontSize: 9,
+                        fill: "var(--color-danger)",
+                        position: "insideTopRight",
+                      }}
+                    />
+                    <Bar
+                      yAxisId="vol"
+                      dataKey="volume"
+                      fill="var(--color-primary)"
+                      opacity={0.25}
+                      radius={[3, 3, 0, 0]}
+                    />
+                    <Line
+                      yAxisId="rpe"
+                      type="monotone"
+                      dataKey="avgRpe"
+                      stroke="var(--color-warning)"
+                      strokeWidth={2.5}
+                      dot={(props) => {
+                        const { cx, cy, payload } = props;
+                        if (cx == null || cy == null) return <g />;
+                        const crit = payload.hasCritical;
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={crit ? 5 : 3}
+                            fill={crit ? "var(--color-danger)" : "var(--color-warning)"}
+                            stroke={crit ? "var(--color-danger)" : "none"}
+                            strokeWidth={crit ? 2 : 0}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 5 }}
+                      connectNulls
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* legenda dos eixos */}
+              <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <i className="w-3 h-0.5 bg-warning inline-block" /> RPE (esq.)
+                </span>
+                <span className="flex items-center gap-1">
+                  <i className="w-2.5 h-2.5 rounded-sm bg-primary/30 inline-block" /> Volume (dir.)
+                </span>
+                <span className="flex items-center gap-1">
+                  <i className="size-2 rounded-full bg-danger inline-block" /> série RPE ≥ 9,5
+                </span>
+              </div>
+
+              {/* alerta de séries críticas */}
+              {criticalSeries.length > 0 && (
+                <div className="mt-3 rounded-lg bg-danger/10 border border-danger/30 p-3">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-danger mb-1.5">
+                    <AlertTriangle className="size-4" /> Séries no limite (RPE ≥ 9,5)
+                  </div>
+                  <div className="space-y-1">
+                    {criticalSeries.slice(0, 6).map((c, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground w-12 tabular-nums">
+                          {c.dateLabel}
+                        </span>
+                        <span className="tabular-nums">
+                          {c.weight}kg × {c.reps}
+                        </span>
+                        <span className="ml-auto font-bold text-danger tabular-nums">
+                          RPE {c.rpe}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-2">
+                    Séries no limite são normais pontualmente, mas se repetem com frequência indicam
+                    fadiga alta — considere ajustar carga ou descanso.
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </Card>
       )}
 

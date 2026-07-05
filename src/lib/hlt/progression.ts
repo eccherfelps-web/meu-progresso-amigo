@@ -162,3 +162,65 @@ export function suggestLoad(sessions: WorkoutSession[], exercise: Exercise): Loa
     action: "manter",
   };
 }
+
+export interface RpeVolumePoint {
+  date: string; // ISO da sessão
+  dateLabel: string; // MM-DD
+  avgRpe: number | null; // RPE médio do exercício na sessão
+  maxRpe: number | null; // maior RPE de uma série (para o alerta)
+  volume: number; // volume total (carga × reps) do exercício no dia
+  topWeight: number; // maior carga usada
+  hasCritical: boolean; // alguma série com RPE >= 9.5
+  criticalSets: { weight: number; reps: number; rpe: number }[];
+}
+
+/**
+ * Série temporal de RPE × Volume de UM exercício, sessão a sessão.
+ * Base para o gráfico de correlação carga × esforço e o alerta de série crítica.
+ */
+export function rpeVolumeByExercise(
+  sessions: WorkoutSession[],
+  exerciseId: string,
+): RpeVolumePoint[] {
+  const out: RpeVolumePoint[] = [];
+  for (const s of [...sessions].sort((a, b) => a.date.localeCompare(b.date))) {
+    const ex = s.exercises.find((e) => e.exercise_id === exerciseId);
+    if (!ex || ex.sets.length === 0) continue;
+    const rpes = ex.sets.map((st) => st.rpe).filter((r): r is number => r != null);
+    const volume = ex.sets.reduce((a, st) => a + st.weight_kg * st.reps, 0);
+    const criticalSets = ex.sets
+      .filter((st) => st.rpe != null && st.rpe >= 9.5)
+      .map((st) => ({ weight: st.weight_kg, reps: st.reps, rpe: st.rpe as number }));
+    out.push({
+      date: s.date,
+      dateLabel: s.date.slice(5, 10),
+      avgRpe: rpes.length ? +(rpes.reduce((a, b) => a + b, 0) / rpes.length).toFixed(1) : null,
+      maxRpe: rpes.length ? Math.max(...rpes) : null,
+      volume: Math.round(volume),
+      topWeight: Math.max(...ex.sets.map((st) => st.weight_kg)),
+      hasCritical: criticalSets.length > 0,
+      criticalSets,
+    });
+  }
+  return out;
+}
+
+/** Interpreta a última sessão vs a anterior: força ganhou, fadiga subiu, etc. */
+export function rpeVolumeInsight(points: RpeVolumePoint[]): string | null {
+  const withRpe = points.filter((p) => p.avgRpe != null);
+  if (withRpe.length < 2) return null;
+  const last = withRpe[withRpe.length - 1];
+  const prev = withRpe[withRpe.length - 2];
+  const dRpe = (last.avgRpe as number) - (prev.avgRpe as number);
+  const dVol = last.volume - prev.volume;
+  const volSame = Math.abs(dVol) / Math.max(1, prev.volume) < 0.05;
+  if (volSame && dRpe <= -0.5)
+    return "Mesmo volume com RPE menor — sinal de ganho de força/adaptação. 💪";
+  if (volSame && dRpe >= 0.5)
+    return "Mesmo volume com RPE maior — fadiga acumulando neste exercício. Atenção ao descanso.";
+  if (dVol > 0 && dRpe <= 0.3)
+    return "Volume subiu sem esforço percebido disparar — progressão saudável.";
+  if (dVol < 0 && dRpe >= 0.5)
+    return "Volume caiu e o esforço subiu — pode ser fadiga ou dia ruim. Observe a próxima sessão.";
+  return null;
+}

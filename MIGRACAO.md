@@ -587,3 +587,25 @@ formata peso e média como "58,4 kg".
 que fazer). Antes eram frases soltas sem explicação.
 
 ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.18 — Análise micro de RPE por exercício (carga × esforço)
+
+Substitui o gráfico de RPE médio DIÁRIO (que mascarava picos — ex.: Hack Squat
+RPE 10 + Mesa Flexora RPE 6 virava média ilusória 8) por uma análise focada em
+UM exercício:
+
+- **Seletor de exercício** (só lista os que têm RPE registrado).
+- **Gráfico combinado (ComposedChart):** linha de RPE médio do exercício +
+  barras de volume (carga × reps) do dia, em eixos duplos (RPE à esquerda,
+  volume à direita).
+- **Correlação carga × esforço:** insight automático — volume estável + RPE
+  caindo = ganho de força; volume estável + RPE subindo = fadiga acumulando.
+- **Alerta de série crítica:** pontos com série RPE ≥ 9,5 ficam vermelhos e
+  maiores no gráfico, independentemente da média; lista das séries no limite
+  (data, carga × reps, RPE) abaixo do gráfico.
+
+Novos helpers em progression.ts: `rpeVolumeByExercise`, `rpeVolumeInsight`.
+Testado: série crítica detectada apesar de média baixa; força vs fadiga
+distinguidas com volume idêntico. ESLint 0 · TypeScript 0 · build ok.
