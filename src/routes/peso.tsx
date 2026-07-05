@@ -83,8 +83,8 @@ function PesoPage() {
   );
   const chartData = filtered.map((w) => ({
     date: w.date.slice(5),
-    peso: w.weight_kg,
-    media: avg14,
+    peso: +w.weight_kg.toFixed(1),
+    media: +avg14.toFixed(1),
   }));
 
   return (
@@ -149,6 +149,10 @@ function PesoPage() {
                   border: "1px solid var(--color-border)",
                   borderRadius: 8,
                 }}
+                formatter={(v: number, name: string) => [
+                  `${Number(v).toFixed(1)} kg`,
+                  name === "media" ? "Média 14d" : "Peso",
+                ]}
               />
               <ReferenceLine
                 y={profile.weight_goal_kg}

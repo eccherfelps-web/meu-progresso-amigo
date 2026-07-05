@@ -42,8 +42,26 @@ export function dailyMacros(p: Profile, isRestDay = false): Macros {
   return { kcal, protein_g, carbs_g, fat_g };
 }
 
+/** Converte uma data para "YYYY-MM-DD" no fuso LOCAL do usuário.
+ *  Usar isto em vez de toISOString() (que é UTC e adianta/atrasa o dia para
+ *  quem não está em UTC — ex.: Brasil UTC-3, um treino às 21h virava o dia
+ *  seguinte). */
+export function toLocalISO(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISO(new Date());
+}
+
+/** Extrai "YYYY-MM-DD" LOCAL de um timestamp ISO salvo (ex.: data de sessão).
+ *  Se a string já for só data (10 chars), retorna como está. */
+export function localDayOf(isoTimestamp: string): string {
+  if (isoTimestamp.length <= 10) return isoTimestamp;
+  return toLocalISO(new Date(isoTimestamp));
 }
 
 export function fmtDate(iso: string): string {

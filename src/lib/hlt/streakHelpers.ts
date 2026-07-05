@@ -4,14 +4,15 @@
 //   sessão registrada (folga não conta como falha).
 import type { WorkoutSession, WeekSchedule } from "./types";
 import { dayGroups } from "./defaults";
+import { toLocalISO, localDayOf } from "./calc";
 
 function iso(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return toLocalISO(d);
 }
 
 /** Maior sequência de dias de treino CONSECUTIVOS terminando hoje/ontem. */
 export function consecutiveTrainingStreak(sessions: WorkoutSession[]): number {
-  const days = new Set(sessions.map((s) => s.date.slice(0, 10)));
+  const days = new Set(sessions.map((s) => localDayOf(s.date)));
   if (days.size === 0) return 0;
   let streak = 0;
   const d = new Date();
@@ -38,7 +39,7 @@ export interface ScheduleStatus {
 
 /** Cruza o cronograma com as sessões para saber o que foi cumprido/faltou. */
 export function scheduleStatus(sessions: WorkoutSession[], schedule: WeekSchedule): ScheduleStatus {
-  const trained = new Set(sessions.map((s) => s.date.slice(0, 10)));
+  const trained = new Set(sessions.map((s) => localDayOf(s.date)));
   const today = new Date();
   const todayIso = iso(today);
   const expectedToday = dayGroups(schedule[today.getDay()]).length > 0;

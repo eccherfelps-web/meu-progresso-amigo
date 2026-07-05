@@ -563,3 +563,27 @@ primário passado na URL), em vez de usar todos os grupos do dia.
   variação de push (slot) aparece junto com legs.
 
 ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.17 — Correção de fuso horário (datas), gráfico de peso e dicas expansíveis
+
+**1+2. Bug de fuso horário (a causa dos dois problemas de data).** Todo o app
+usava `toISOString()`, que converte para UTC. Para quem está no Brasil (UTC-3),
+um treino às 21h de 04/07 virava 05/07 em UTC — então o treino "pulava" para o
+dia seguinte no calendário de consistência, e o streak quebrava porque as datas
+não batiam com "hoje". Criadas as funções `toLocalISO()` e `localDayOf()` no
+calc.ts, que extraem a data no fuso LOCAL. Aplicadas no streak
+(`consecutiveTrainingStreak`) e no heatmap de consistência. Teste com TZ do
+Brasil confirma: treino às 21h de 04/07 fica em 04/07, e 4 dias seguidos = streak
+4 (antes 1).
+
+**3. Gráfico de peso com decimais.** A linha de média mostrava o valor bruto
+(ex.: 58,428571…). Arredondada para 1 casa no gráfico, e o tooltip agora
+formata peso e média como "58,4 kg".
+
+**4. Dicas inteligentes expansíveis.** Cada dica virou um accordion: título curto
++ seta; ao clicar, expande um parágrafo com o contexto completo (o porquê e o
+que fazer). Antes eram frases soltas sem explicação.
+
+ESLint 0 · TypeScript 0 · build ok.

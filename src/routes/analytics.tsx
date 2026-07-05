@@ -29,7 +29,7 @@ import type {
   WorkoutSession,
   WeekSchedule,
 } from "@/lib/hlt/types";
-import { dailyMacros } from "@/lib/hlt/calc";
+import { dailyMacros, todayISO, toLocalISO, localDayOf } from "@/lib/hlt/calc";
 import {
   LineChart,
   Line,
@@ -264,6 +264,7 @@ function AnalyticsPage() {
   const muscleStats = useMemo(() => weeklyMuscleStats(sessions), [sessions]);
   const balance = useMemo(() => muscleBalance(muscleStats), [muscleStats]);
   const [openSub, setOpenSub] = useState<SubMuscle | null>(null);
+  const [openTip, setOpenTip] = useState<number | null>(null);
   const subMuscleData = useMemo(() => subMuscleStats(sessions), [sessions]);
 
   // Lista de exercícios para o gráfico de progressão, sem nomes repetidos.
@@ -317,7 +318,7 @@ function AnalyticsPage() {
 
   // Smart tips
   const tips = useMemo(() => {
-    const t: string[] = [];
+    const t: { short: string; detail: string }[] = [];
     // Same load 2+ weeks
     if (sessions.length >= 4 && selectedExId) {
       const recent = sessions
@@ -332,7 +333,11 @@ function AnalyticsPage() {
           ),
         );
         if (maxes.every((m) => m === maxes[0]))
-          t.push(`Tente adicionar 1-2 kg ou aumentar reps no exercício selecionado.`);
+          t.push({
+            short: "Hora de progredir a carga no exercício selecionado.",
+            detail:
+              "Você repetiu o mesmo peso máximo nas últimas sessões deste exercício. Quando a carga estaciona, o estímulo de crescimento diminui. Aplique a progressão dupla: se já bate o topo da faixa de repetições, suba 1–2 kg na próxima; se não, mantenha o peso e busque mais 1–2 reps por série até chegar lá.",
+          });
       }
     }
     // Workouts last week
@@ -340,7 +345,11 @@ function AnalyticsPage() {
       (s) => new Date(s.date).getTime() > Date.now() - 7 * 24 * 3600 * 1000,
     ).length;
     if (lastWeekCount < 4 && sessions.length > 5)
-      t.push("Sua consistência caiu esta semana — priorize ao menos 4 sessões.");
+      t.push({
+        short: "Sua consistência caiu esta semana.",
+        detail:
+          "Você treinou menos de 4 vezes nos últimos 7 dias. A frequência é o fator que mais influencia resultado a longo prazo — mais até que o treino perfeito. Tente garantir pelo menos 4 sessões por semana, mesmo que alguma seja mais curta.",
+      });
     // Fat avg 7d
     const last7Days = foods.filter(
       (f) => new Date(f.date).getTime() > Date.now() - 7 * 24 * 3600 * 1000,
@@ -355,7 +364,10 @@ function AnalyticsPage() {
         ) / last7Days.length;
       const fatLimit = profile.fat_daily_limit_g ?? 50;
       if (avgFat > fatLimit)
-        t.push(`Sua gordura média está acima do limite de ${fatLimit}g — revise os lanches.`);
+        t.push({
+          short: `Gordura média acima do limite de ${fatLimit}g/dia.`,
+          detail: `Nos últimos dias sua média de gordura passou de ${fatLimit}g (sua meta). Gordura tem 9 kcal/g (mais que o dobro da proteína e carboidrato), então ela estoura as calorias rápido. Olhe os lanches e frituras: troque parte por fontes magras de proteína ou carboidrato para manter o bulk limpo.`,
+        });
     }
     // Protein
     const macros = dailyMacros(profile);
@@ -370,9 +382,11 @@ function AnalyticsPage() {
           macros.protein_g * 0.8,
       );
     if (lowProteinDays.length >= 3)
-      t.push(
-        "Proteína abaixo da meta nos últimos 3 dias — adicione fonte proteica em cada refeição.",
-      );
+      t.push({
+        short: "Proteína abaixo da meta nos últimos 3 dias.",
+        detail:
+          "A proteína é o nutriente que constrói músculo — sem ela, o treino rende menos. Você ficou abaixo de 80% da meta em 3 dias seguidos. Garanta uma fonte (ovos, frango, carne, whey, iogurte) em cada refeição principal para distribuir ao longo do dia.",
+      });
     // Weight stagnant
     const last14W = weights.slice(-14);
     if (
@@ -380,28 +394,48 @@ function AnalyticsPage() {
       Math.max(...last14W.map((w) => w.weight_kg)) - Math.min(...last14W.map((w) => w.weight_kg)) <
         0.3
     ) {
-      t.push("Seu peso está estagnado — considere aumentar 100-150 kcal/dia.");
+      t.push({
+        short: "Seu peso está estagnado (bulk parado).",
+        detail:
+          "Nas últimas 2 semanas seu peso variou menos de 0,3 kg. Num bulk, isso significa que suas calorias estão de manutenção, não de ganho. Adicione 100–150 kcal por dia (de preferência carboidrato) e reavalie em 1–2 semanas.",
+      });
     }
     // Legs vs chest
     const chest = radarData.find((r) => r.group === "Peito")?.volume ?? 0;
     const legs = radarData.find((r) => r.group === "Pernas")?.volume ?? 0;
     if (chest > 0 && legs < chest * 0.6)
-      t.push("Pernas recebendo menos atenção — reforce o treino de quarta.");
+      t.push({
+        short: "Pernas recebendo menos volume que peito.",
+        detail:
+          "Seu volume de pernas está abaixo de 60% do volume de peito. Desequilíbrios assim, ao longo do tempo, geram desproporção estética e podem afetar postura e força geral. Reforce o treino de pernas (mais séries ou um exercício extra).",
+      });
     // dias CONSECUTIVOS de treino (calendário real, sem buracos)
     const consec = consecutiveTrainingStreak(sessions);
     if (consec >= 7)
-      t.push(
-        `⚠️ ${consec} dias seguidos sem descanso — planeje uma folga para evitar overtraining.`,
-      );
+      t.push({
+        short: `${consec} dias seguidos sem descanso.`,
+        detail: `Você treinou ${consec} dias consecutivos sem folga. O músculo cresce no descanso, não no treino — dias seguidos sem pausa aumentam o risco de overtraining, queda de desempenho e lesão. Programe pelo menos 1 dia de descanso para recuperar.`,
+      });
     // treino do cronograma não registrado nesta semana
     const st = scheduleStatus(sessions, schedule);
     if (st.missedToday)
-      t.push("📌 Hoje é dia de treino no seu plano e ainda não há registro — bora?");
+      t.push({
+        short: "Hoje é dia de treino no seu plano.",
+        detail:
+          "Segundo seu cronograma, hoje é dia de treinar e ainda não há sessão registrada. Se já treinou, não esqueça de registrar para manter suas estatísticas e streak corretos.",
+      });
     else if (st.missedThisWeek.length > 0)
-      t.push(
-        `📌 ${st.missedThisWeek.length} treino(s) do seu plano ficaram sem registro esta semana.`,
-      );
-    if (t.length === 0) t.push("Tudo certo! Continue assim — disciplina é o caminho.");
+      t.push({
+        short: `${st.missedThisWeek.length} treino(s) sem registro esta semana.`,
+        detail:
+          "Alguns dias que seu cronograma marcava como treino ficaram sem sessão registrada nesta semana. Se você treinou e esqueceu de registrar, adicione manualmente; se faltou mesmo, tente compensar em outro dia.",
+      });
+    if (t.length === 0)
+      t.push({
+        short: "Tudo certo! Continue assim. 💪",
+        detail:
+          "Nenhum alerta no momento: sua consistência, volume, nutrição e progressão estão dentro do esperado. Disciplina é o que constrói resultado — siga firme no seu plano.",
+      });
     return t;
   }, [sessions, selectedExId, foods, weights, radarData, profile, schedule]);
 
@@ -412,13 +446,13 @@ function AnalyticsPage() {
   // valia necessariamente semanas atrás, então dias passados sem treino são
   // apenas "descanso" (evita pintar de vermelho retroativamente ao mudar o plano).
   const heatmap = useMemo(() => {
-    const trained = new Set(sessions.map((s) => s.date.slice(0, 10)));
+    const trained = new Set(sessions.map((s) => localDayOf(s.date)));
     const now = new Date();
-    const todayIso = now.toISOString().slice(0, 10);
+    const todayIso = toLocalISO(now);
     // início da semana atual (domingo) — só a partir daqui "faltou" faz sentido
     const currentWeekStart = new Date(now);
     currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
-    const curWeekIso = currentWeekStart.toISOString().slice(0, 10);
+    const curWeekIso = toLocalISO(currentWeekStart);
 
     const start = new Date();
     start.setDate(start.getDate() - start.getDay() - 11 * 7); // domingo, 12 semanas atrás
@@ -426,7 +460,7 @@ function AnalyticsPage() {
     for (let i = 0; i < 84; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
-      const iso = d.toISOString().slice(0, 10);
+      const iso = toLocalISO(d);
       let state: "trained" | "missed" | "rest" | "future";
       if (trained.has(iso)) {
         state = "trained";
@@ -477,13 +511,30 @@ function AnalyticsPage() {
           <Lightbulb className="size-5 text-warning" />
           <h3 className="font-semibold">Dicas inteligentes</h3>
         </div>
-        <ul className="space-y-2 text-sm">
-          {tips.map((t, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="text-primary">•</span>
-              <span>{t}</span>
-            </li>
-          ))}
+        <ul className="space-y-1.5 text-sm">
+          {tips.map((t, i) => {
+            const open = openTip === i;
+            return (
+              <li key={i} className="rounded-lg border border-border overflow-hidden">
+                <button
+                  onClick={() => setOpenTip(open ? null : i)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent/50 transition"
+                  aria-expanded={open}
+                >
+                  <span className="text-primary shrink-0">•</span>
+                  <span className="flex-1">{t.short}</span>
+                  <ChevronDown
+                    className={`size-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {open && (
+                  <div className="px-3 pb-3 pl-8 text-xs text-muted-foreground leading-relaxed">
+                    {t.detail}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </Card>
 
