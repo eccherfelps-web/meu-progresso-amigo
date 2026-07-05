@@ -345,11 +345,14 @@ function TreinoPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${GROUP_BADGE[d.group]}`}
-                      >
-                        {d.group}
-                      </span>
+                      {d.groups.map((g) => (
+                        <span
+                          key={g}
+                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${GROUP_BADGE[g]}`}
+                        >
+                          {g}
+                        </span>
+                      ))}
                       <span className="text-xs text-muted-foreground">{d.focus}</span>
                     </div>
                   </div>

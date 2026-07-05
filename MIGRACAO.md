@@ -540,3 +540,26 @@ exercícios. Ao escolher, o dia é vinculado à variação (clonando os exercíc
 variação para a nova ocorrência quando necessário, sem afetar a original).
 
 ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.16 — Correção de dia com múltiplos grupos (ex.: Sábado Legs + Push)
+
+**Bug:** um dia com dois grupos (ex.: sábado = Legs + Push) era lido só pelo
+grupo PRIMÁRIO. O treino ativo recebia apenas "legs" e filtrava exercícios só
+desse grupo — os de Push (e suas variações) não apareciam, e não dava para
+escolher a variação de Push naquele dia.
+
+**Causa:** o treino ativo filtrava `exercises` por um único `type` (o grupo
+primário passado na URL), em vez de usar todos os grupos do dia.
+
+**Correções:**
+- Treino ativo agora usa `exercisesForDay(exercises, dayInfo)` quando vem de um
+  dia do cronograma — lê TODOS os grupos do dia, respeitando o slot por
+  ocorrência de cada grupo. Sábado Legs + Push mostra os exercícios dos dois.
+- A página de Treino mostra um badge para CADA grupo do dia (antes só o
+  primário aparecia).
+- Confirmado por teste: sábado [legs, push] resolve occ legs=1, push=2, e a
+  variação de push (slot) aparece junto com legs.
+
+ESLint 0 · TypeScript 0 · build ok.

@@ -15,7 +15,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
-import { DEFAULT_EXERCISES, DEFAULT_SCHEDULE, daysFromSchedule } from "@/lib/hlt/defaults";
+import {
+  DEFAULT_EXERCISES,
+  DEFAULT_SCHEDULE,
+  daysFromSchedule,
+  exercisesForDay,
+} from "@/lib/hlt/defaults";
 import type {
   Exercise,
   MuscleGroup,
@@ -61,15 +66,13 @@ function TreinoAtivo() {
     [schedule, day],
   );
 
-  const list = useMemo(
-    () =>
-      exercises.filter(
-        (e) =>
-          e.group === (type as MuscleGroup) &&
-          (dayInfo == null || e.slot == null || e.slot === dayInfo.occurrence),
-      ),
-    [exercises, type, dayInfo],
-  );
+  const list = useMemo(() => {
+    // Se veio de um dia do cronograma, usa TODOS os grupos daquele dia
+    // (ex.: sábado = Legs + Push) respeitando o slot por ocorrência de grupo.
+    if (dayInfo) return exercisesForDay(exercises, dayInfo);
+    // fallback: sem dia definido, filtra pelo type único recebido
+    return exercises.filter((e) => e.group === (type as MuscleGroup));
+  }, [exercises, type, dayInfo]);
 
   const [phase, setPhase] = useState<"warmup" | "workout" | "done">("warmup");
   const [confirmFinish, setConfirmFinish] = useState(false); // finalizar no meio do treino
