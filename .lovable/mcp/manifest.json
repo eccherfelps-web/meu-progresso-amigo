@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "healthy-life-tracker-mcp",
+      "version": "0.1.0",
+      "title": "Healthy Life Tracker"
+    },
+    "tools": [
+      {
+        "name": "get_profile_info",
+        "title": "Informações do perfil",
+        "description": "Retorna instruções sobre onde encontrar o perfil do usuário no Healthy Life Tracker. Os dados ficam no dispositivo (IndexedDB/localStorage) — o cliente MCP não os acessa diretamente.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "calculate_macros",
+        "title": "Calcular macros",
+        "description": "Calcula gasto energético (TDEE), meta calórica e distribuição de macros (proteína, carboidrato, gordura) a partir de peso, altura, idade, sexo, nível de atividade e objetivo.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "weightKg": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Peso em kg"
+            },
+            "heightCm": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Altura em cm"
+            },
+            "age": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Idade em anos"
+            },
+            "sex": {
+              "type": "string",
+              "enum": [
+                "male",
+                "female"
+              ],
+              "description": "Sexo biológico"
+            },
+            "activityLevel": {
+              "type": "string",
+              "enum": [
+                "sedentary",
+                "light",
+                "moderate",
+                "active",
+                "very_active"
+              ],
+              "description": "Nível de atividade física"
+            },
+            "goal": {
+              "type": "string",
+              "enum": [
+                "cut",
+                "maintain",
+                "bulk"
+              ],
+              "description": "Objetivo: cutting (déficit), manutenção ou bulk (superávit)"
+            }
+          },
+          "required": [
+            "weightKg",
+            "heightCm",
+            "age",
+            "sex",
+            "activityLevel",
+            "goal"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_one_rep_max",
+        "title": "Estimar 1RM",
+        "description": "Estima a repetição máxima (1RM) para um exercício usando a fórmula de Epley: 1RM = peso × (1 + reps/30).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "weightKg": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Peso levantado em kg"
+            },
+            "reps": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 20,
+              "description": "Repetições completadas (1-20)"
+            }
+          },
+          "required": [
+            "weightKg",
+            "reps"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
