@@ -38,7 +38,6 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "weightKg": {
@@ -54,7 +53,6 @@
             "age": {
               "type": "integer",
               "exclusiveMinimum": 0,
-              "maximum": 9007199254740991,
               "description": "Idade em anos"
             },
             "sex": {
@@ -93,7 +91,9 @@
             "sex",
             "activityLevel",
             "goal"
-          ]
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       },
@@ -107,7 +107,6 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "weightKg": {
@@ -125,7 +124,9 @@
           "required": [
             "weightKg",
             "reps"
-          ]
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       }
