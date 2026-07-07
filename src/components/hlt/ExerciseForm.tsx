@@ -15,6 +15,7 @@ import type { Exercise, MuscleGroup } from "@/lib/hlt/types";
 import type { TrainingDay } from "@/lib/hlt/defaults";
 import { MUSCLES } from "@/lib/hlt/muscles";
 import { searchCatalog, MUSCLE_ICON, type CatalogEntry } from "@/lib/hlt/exerciseCatalog";
+import { normExerciseName as normName } from "@/lib/hlt/progression";
 import { toast } from "sonner";
 
 interface Props {
@@ -198,21 +199,35 @@ export function ExerciseForm({
         <div className="space-y-3">
           {!editing && recents.length > 0 && (
             <div>
-              <div className="text-[11px] text-muted-foreground mb-1">Recentes</div>
+              <div className="text-[11px] text-muted-foreground mb-1">
+                Já treinados (mantêm seu histórico e progressão)
+              </div>
               <div className="flex flex-wrap gap-1.5">
-                {recents.slice(0, 5).map((r) => (
+                {recents.slice(0, 8).map((r) => (
                   <button
                     key={r}
                     onClick={() => {
                       setName(r);
-                      setShowSug(true);
+                      setShowSug(false);
                     }}
-                    className="text-[11px] px-2 py-1 rounded-full border border-border hover:bg-accent"
+                    className="text-[11px] px-2 py-1 rounded-full border border-success/40 bg-success/10 text-foreground hover:bg-success/20 flex items-center gap-1"
                   >
+                    <span className="text-success">↺</span>
                     {r}
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* aviso quando o nome digitado casa com histórico existente */}
+          {!editing && name.trim() && recents.some((r) => normName(r) === normName(name)) && (
+            <div className="rounded-lg bg-success/10 border border-success/30 px-3 py-2 text-xs text-success flex items-center gap-2">
+              <span>↺</span>
+              <span>
+                Este exercício já tem histórico salvo — ao criar com este nome, sua progressão e
+                recordes anteriores serão reaproveitados.
+              </span>
             </div>
           )}
 

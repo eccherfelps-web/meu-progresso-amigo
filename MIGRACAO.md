@@ -663,3 +663,28 @@ carga, etc.), pulando os que já estão no plano. Poupa digitação ao criar o
 primeiro plano a partir do treino existente.
 
 ESLint 0 · TypeScript 0 · build (bun) ok.
+
+---
+
+# v1.20 — Histórico por nome + sugestões com dados salvos
+
+**Problema:** o histórico/análise era vinculado ao ID do exercício. Ao excluir e
+recriar um exercício com o mesmo nome (novo ID), a Análise não puxava mais nada —
+o histórico "sumia".
+
+**Correção:** todas as buscas de histórico agora casam por ID OU por nome
+normalizado (ignora acento, caixa e espaços). Assim, recriar um exercício com o
+mesmo nome reaproveita toda a progressão, recordes e RPE anteriores. Novo helper
+`normExerciseName` + `sessionExerciseMatches` no progression.ts; aplicado em
+exerciseHistory, compareToLast, detectStagnation, suggestLoad,
+rpeVolumeByExercise, loadHistory (analytics) e MesoGoals.
+
+**Sugestões melhoradas no cadastro:**
+- Seção "Já treinados (mantêm seu histórico e progressão)" — os exercícios que
+  você já usou, com ícone ↺, priorizados no topo do formulário.
+- Ao digitar um nome que casa com histórico existente, aviso verde confirmando
+  que a progressão será reaproveitada.
+- Catálogo de exercícios famosos continua nas sugestões conforme você digita.
+
+ESLint 0 · TypeScript 0 · build (bun) ok. Testado: histórico recuperado após
+recriar exercício com mesmo nome; nomes diferentes não se misturam.

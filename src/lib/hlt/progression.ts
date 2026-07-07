@@ -5,6 +5,27 @@
 import type { WorkoutSession, Exercise } from "./types";
 import { oneRepMax } from "./onerm";
 
+/** Normaliza o nome de um exercício para comparação (ignora acento/caixa/espaços). */
+export function normExerciseName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Um exercício de sessão "casa" com o selecionado se o ID bate OU o nome bate.
+ *  Isso garante que recriar um exercício com o mesmo nome mantenha o histórico. */
+export function sessionExerciseMatches(
+  se: { exercise_id: string; name: string },
+  selected: { id: string; name: string },
+): boolean {
+  return (
+    se.exercise_id === selected.id || normExerciseName(se.name) === normExerciseName(selected.name)
+  );
+}
+
 export interface ExerciseSessionSummary {
   date: string; // ISO
   best1rm: number;
@@ -18,10 +39,17 @@ export interface ExerciseSessionSummary {
 export function exerciseHistory(
   sessions: WorkoutSession[],
   exerciseId: string,
+  nameHint?: string,
 ): ExerciseSessionSummary[] {
   const out: ExerciseSessionSummary[] = [];
+  const normHint = nameHint ? normExerciseName(nameHint) : null;
   for (const s of [...sessions].sort((a, b) => a.date.localeCompare(b.date))) {
-    const ex = s.exercises.find((e) => e.exercise_id === exerciseId);
+    // casa por ID ou por nome normalizado — assim recriar o exercício com o
+    // mesmo nome (novo ID) não perde o histórico antigo.
+    const ex = s.exercises.find(
+      (e) =>
+        e.exercise_id === exerciseId || (normHint != null && normExerciseName(e.name) === normHint),
+    );
     if (!ex || ex.sets.length === 0) continue;
     const rms = ex.sets.map((st) =>
       oneRepMax(st.weight_kg, st.reps, {
@@ -59,8 +87,9 @@ export function compareToLast(
   sessions: WorkoutSession[],
   exerciseId: string,
   currentBest1rm?: number,
+  nameHint?: string,
 ): ProgressComparison | null {
-  const hist = exerciseHistory(sessions, exerciseId);
+  const hist = exerciseHistory(sessions, exerciseId, nameHint);
   if (hist.length === 0) return null;
   const last = hist[hist.length - 1];
   const daysAgo = Math.round((Date.now() - new Date(last.date).getTime()) / 86400000);
@@ -87,8 +116,9 @@ export function detectStagnation(
   sessions: WorkoutSession[],
   exerciseId: string,
   threshold = 4,
+  nameHint?: string,
 ): StagnationInfo {
-  const hist = exerciseHistory(sessions, exerciseId);
+  const hist = exerciseHistory(sessions, exerciseId, nameHint);
   if (hist.length < 2)
     return {
       stagnant: false,
@@ -130,7 +160,7 @@ function repRange(reps: string): { min: number; max: number } {
 
 /** Sugestão de carga por dupla progressão, a partir da última sessão. */
 export function suggestLoad(sessions: WorkoutSession[], exercise: Exercise): LoadSuggestion {
-  const hist = exerciseHistory(sessions, exercise.id);
+  const hist = exerciseHistory(sessions, exercise.id, exercise.name);
   const { min, max } = repRange(exercise.reps);
   if (hist.length === 0) {
     return {
@@ -181,10 +211,15 @@ export interface RpeVolumePoint {
 export function rpeVolumeByExercise(
   sessions: WorkoutSession[],
   exerciseId: string,
+  nameHint?: string,
 ): RpeVolumePoint[] {
   const out: RpeVolumePoint[] = [];
+  const normHint = nameHint ? normExerciseName(nameHint) : null;
   for (const s of [...sessions].sort((a, b) => a.date.localeCompare(b.date))) {
-    const ex = s.exercises.find((e) => e.exercise_id === exerciseId);
+    const ex = s.exercises.find(
+      (e) =>
+        e.exercise_id === exerciseId || (normHint != null && normExerciseName(e.name) === normHint),
+    );
     if (!ex || ex.sets.length === 0) continue;
     const rpes = ex.sets.map((st) => st.rpe).filter((r): r is number => r != null);
     const volume = ex.sets.reduce((a, st) => a + st.weight_kg * st.reps, 0);

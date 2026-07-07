@@ -89,9 +89,26 @@ function AnalyticsPage() {
 
   const showAssessment = weeksOfData < 4 && !assessment;
 
+  const selectedExName = exercises.find((e) => e.id === selectedExId)?.name ?? "";
   const loadHistory = useMemo(() => {
+    const normSel = selectedExName
+      ? selectedExName
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim()
+      : null;
     return sessions.flatMap((s) => {
-      const ex = s.exercises.find((e) => e.exercise_id === selectedExId);
+      const ex = s.exercises.find(
+        (e) =>
+          e.exercise_id === selectedExId ||
+          (normSel != null &&
+            e.name
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .trim() === normSel),
+      );
       if (!ex || ex.sets.length === 0) return [];
       const maxW = Math.max(...ex.sets.map((x) => x.weight_kg));
       const rm = Math.max(
@@ -109,7 +126,7 @@ function AnalyticsPage() {
         : null;
       return [{ date: s.date.slice(5, 10), peso: maxW, rm, rpe: avgRpe }];
     });
-  }, [sessions, selectedExId]);
+  }, [sessions, selectedExId, selectedExName]);
 
   // Feature 3 — RPE médio por sessão (todas as sessões, para tendência de fadiga)
   const rpeHistory = useMemo(() => {
@@ -282,8 +299,15 @@ function AnalyticsPage() {
 
   const effectiveRpeExId = rpeExId || rpeExerciseOptions[0]?.id || "";
   const rpeByExercise = useMemo(
-    () => (effectiveRpeExId ? rpeVolumeByExercise(sessions, effectiveRpeExId) : []),
-    [sessions, effectiveRpeExId],
+    () =>
+      effectiveRpeExId
+        ? rpeVolumeByExercise(
+            sessions,
+            effectiveRpeExId,
+            rpeExerciseOptions.find((e) => e.id === effectiveRpeExId)?.name,
+          )
+        : [],
+    [sessions, effectiveRpeExId, rpeExerciseOptions],
   );
   const rpeInsight = useMemo(() => rpeVolumeInsight(rpeByExercise), [rpeByExercise]);
   const criticalSeries = useMemo(

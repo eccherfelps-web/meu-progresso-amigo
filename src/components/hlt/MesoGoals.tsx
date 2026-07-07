@@ -29,7 +29,7 @@ function currentValue(goal: MesoGoal, sessions: WorkoutSession[], weights: Weigh
     const sorted = [...weights].sort((a, b) => b.date.localeCompare(a.date));
     return sorted[0]?.weight_kg ?? goal.start_value;
   }
-  const hist = exerciseHistory(sessions, goal.exercise_id ?? "");
+  const hist = exerciseHistory(sessions, goal.exercise_id ?? "", goal.exercise_name);
   return hist.length ? hist[hist.length - 1].best1rm : goal.start_value;
 }
 

@@ -232,11 +232,11 @@ function TreinoAtivo() {
   }, [current, currentLog, currentBodyweight]);
 
   const comparison = useMemo(
-    () => (current ? compareToLast(sessions, current.id, todayBest1rm) : null),
+    () => (current ? compareToLast(sessions, current.id, todayBest1rm, current.name) : null),
     [sessions, current, todayBest1rm],
   );
   const stagnation = useMemo(
-    () => (current ? detectStagnation(sessions, current.id) : null),
+    () => (current ? detectStagnation(sessions, current.id, 4, current.name) : null),
     [sessions, current],
   );
   const loadTip = useMemo(
