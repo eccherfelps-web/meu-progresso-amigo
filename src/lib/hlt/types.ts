@@ -147,3 +147,29 @@ export interface MesoGoal {
   created_at: string;
   archived?: boolean;
 }
+
+/** Plano nomeado de treino para um grupo muscular (ex.: "Push A", "Push B").
+ *  O usuário pré-define e depois escolhe qual usar em cada dia da semana. */
+export interface WorkoutPlan {
+  id: string;
+  group: "push" | "pull" | "legs";
+  name: string; // ex.: "Push A (força)", "Pull volume"
+  exercises: PlanExercise[];
+  created_at: string;
+}
+
+/** Exercício dentro de um plano (mesma forma do Exercise, sem group/slot). */
+export interface PlanExercise {
+  id: string;
+  name: string;
+  sets: number;
+  reps: string;
+  load_kg?: number | null;
+  rest_s?: number;
+  muscle?: string;
+  equipment?: string;
+  kind?: "composto" | "isolado";
+  bodyweight?: boolean;
+  notes?: string;
+  order?: number;
+}

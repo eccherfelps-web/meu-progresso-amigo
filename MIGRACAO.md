@@ -609,3 +609,57 @@ UM exercício:
 Novos helpers em progression.ts: `rpeVolumeByExercise`, `rpeVolumeInsight`.
 Testado: série crítica detectada apesar de média baixa; força vs fadiga
 distinguidas com volume idêntico. ESLint 0 · TypeScript 0 · build ok.
+
+---
+
+# v1.18.1 — Limpeza de código morto (correção do erro de build do Lovable)
+
+O template Lovable vinha com 37 componentes shadcn/ui NÃO usados (o kit
+completo). Vários importavam bibliotecas pesadas (chart.tsx→recharts inteiro
+via `import *`, carousel→embla, drawer→vaul, form→react-hook-form, etc.).
+Esse código morto aumentava a superfície de bundle e era um candidato ao erro
+`handleInvalidResolvedId` no build SSR de produção do Lovable (que é mais
+estrito que o build local).
+
+Removidos 37 componentes ui não referenciados por nenhum arquivo; restaram só
+os 9 realmente usados (alert-dialog, button, dialog, input, select, slider,
+sonner, switch, tabs). Nenhuma funcionalidade afetada.
+
+Validado com bun (mesma ferramenta do Lovable): build passa. ESLint 0 ·
+TypeScript 0.
+
+---
+
+# v1.19 — Planos de treino pré-definidos por grupo (resolve conflito de variações)
+
+**Problema:** as "variações" ao adicionar um grupo mais de uma vez na semana
+eram derivadas do campo `slot` dos exercícios — frágil. Quando os slots não
+estavam bem definidos, as variações colapsavam e Variação 1 e 2 mostravam o
+mesmo plano.
+
+**Solução (ideia do usuário):** planos NOMEADOS e explícitos por grupo.
+- Nova seção "Meus planos" (botão no topo da página de Treino) com seletor de
+  grupo (Push/Pull/Legs) — os "botõezinhos no topo".
+- Para cada grupo, o usuário cria planos nomeados (ex.: "Push A força", "Push B
+  volume") com seus próprios exercícios (nome, séries, reps, ordem). Pode
+  duplicar, editar e excluir. Salvos em KEYS.plans.
+- Ao montar a semana (Editar semana) e ligar um grupo num dia, se houver planos
+  salvos daquele grupo, o modal "Qual plano usar?" lista os planos nomeados —
+  não mais variações genéricas idênticas.
+- Ao escolher, os exercícios do plano são materializados naquele dia (com slot =
+  ocorrência do grupo no dia), substituindo qualquer conjunto anterior da mesma
+  ocorrência (sem duplicar).
+
+Novo tipo WorkoutPlan + PlanExercise. Componente WorkoutPlans.tsx.
+ESLint 0 · TypeScript 0 · build (bun) ok.
+
+---
+
+# v1.19.1 — Importar exercícios atuais para um plano
+
+No editor de plano, botão "Importar exercícios atuais deste grupo": pré-preenche
+o plano com os exercícios já cadastrados naquele grupo (nome, séries, reps,
+carga, etc.), pulando os que já estão no plano. Poupa digitação ao criar o
+primeiro plano a partir do treino existente.
+
+ESLint 0 · TypeScript 0 · build (bun) ok.

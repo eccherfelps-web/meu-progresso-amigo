@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Card, PageHeader } from "@/components/hlt/Shell";
+import { WorkoutPlansSection } from "@/components/hlt/WorkoutPlans";
 import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
 import {
   DEFAULT_EXERCISES,
@@ -12,7 +13,7 @@ import {
   exercisesForDay,
   type TrainingDay,
 } from "@/lib/hlt/defaults";
-import type { Exercise, WeekSchedule, WorkoutSession } from "@/lib/hlt/types";
+import type { Exercise, WeekSchedule, WorkoutSession, WorkoutPlan } from "@/lib/hlt/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ExerciseForm } from "@/components/hlt/ExerciseForm";
@@ -30,6 +31,7 @@ import {
   RotateCcw,
   ChevronUp,
   ChevronDown,
+  Dumbbell,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -54,6 +56,7 @@ const GROUP_SHORT: Record<string, string> = {
 
 function TreinoPage() {
   const [exercises, setExercises] = useLocalStorage<Exercise[]>(KEYS.exercises, DEFAULT_EXERCISES);
+  const [plans] = useLocalStorage<WorkoutPlan[]>(KEYS.plans, []);
   const [sessions] = useLocalStorage<WorkoutSession[]>(KEYS.sessions, []);
   const [schedule, setSchedule] = useLocalStorage<WeekSchedule>(KEYS.schedule, DEFAULT_SCHEDULE);
   const navigate = useNavigate();
@@ -145,10 +148,10 @@ function TreinoPage() {
 
   // ── editor do cronograma: liga/desliga grupos por dia (múltiplos!) ──
   const [editWeek, setEditWeek] = useState(false);
-  const [variationPick, setVariationPick] = useState<{
+  const [showPlans, setShowPlans] = useState(false);
+  const [planPick, setPlanPick] = useState<{
     dow: number;
     group: "push" | "pull" | "legs";
-    variations: number[];
   } | null>(null);
 
   const toggleGroup = (dow: number, group: "push" | "pull" | "legs") => {
@@ -159,14 +162,10 @@ function TreinoPage() {
       applyGroupToDay(dow, group, false);
       return;
     }
-    // ligar: verifica se o grupo tem variações (slots distintos) cadastradas
-    const slots = new Set(
-      exercises.filter((e) => e.group === group && e.slot != null).map((e) => e.slot as number),
-    );
-    if (slots.size >= 1) {
-      // há exercícios "presos" a dias específicos → oferece escolher a variação
-      const variations = [...slots].sort((a, b) => a - b);
-      setVariationPick({ dow, group, variations });
+    // ligar: se houver planos salvos deste grupo, oferece escolher qual usar
+    const groupPlans = plans.filter((p) => p.group === group);
+    if (groupPlans.length >= 1) {
+      setPlanPick({ dow, group });
     } else {
       applyGroupToDay(dow, group, true);
     }
@@ -183,49 +182,49 @@ function TreinoPage() {
     });
   };
 
-  // confirma a variação escolhida no modal: liga o grupo no dia e garante que a
-  // ocorrência daquele dia corresponda à variação (slot) selecionada.
-  const confirmVariation = (slot: number) => {
-    if (!variationPick) return;
-    const { dow, group } = variationPick;
-    // liga o grupo no dia
-    setSchedule((prev) => {
-      const next = [...prev] as WeekSchedule;
-      const current = dayGroups(next[dow]);
-      const updated = [...current, group];
-      next[dow] = updated.length === 1 ? updated[0] : updated;
-      return next;
-    });
-    // reposiciona: para que este novo dia use a variação escolhida, ajusta os
-    // slots dos exercícios do grupo para que a ocorrência deste dia bata com o slot.
-    // Como a ocorrência é derivada da ordem semanal, marcamos os exercícios da
-    // variação escolhida para também aparecerem nesta nova ocorrência.
-    const targetSlots = new Set(
-      exercises.filter((e) => e.group === group && e.slot === slot).map((e) => e.id),
-    );
-    if (targetSlots.size > 0) {
-      // calcula a ocorrência que este dia terá na nova grade
-      const withDay = [...schedule] as WeekSchedule;
-      const cur = dayGroups(withDay[dow]);
-      withDay[dow] = [...cur, group].length === 1 ? group : [...cur, group];
-      const newDays = daysFromSchedule(withDay);
-      const thisDay = newDays.find((d) => d.dow === dow);
-      const newOcc = thisDay?.occ[group];
-      if (newOcc != null && newOcc !== slot) {
-        // duplica os exercícios da variação escolhida para a nova ocorrência,
-        // assim eles aparecem neste dia sem remover da variação original
-        setExercises((prev) => {
-          const clones = prev
-            .filter((e) => targetSlots.has(e.id))
-            .map((e) => ({ ...e, id: `${e.id}-v${newOcc}-${Date.now()}`, slot: newOcc }));
-          return [...prev, ...clones];
-        });
-        toast.success(`Variação ${slot + 1} de ${group.toUpperCase()} copiada para o novo dia.`);
-      } else {
-        toast.success(`${group.toUpperCase()} adicionado usando a variação ${slot + 1}.`);
-      }
+  // aplica um PLANO salvo a um dia: liga o grupo e materializa os exercícios do
+  // plano nesse dia (com slot = ocorrência do grupo naquele dia).
+  const applyPlanToDay = (planId: string) => {
+    if (!planPick) return;
+    const { dow, group } = planPick;
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) {
+      setPlanPick(null);
+      return;
     }
-    setVariationPick(null);
+    // 1) liga o grupo no dia e calcula a ocorrência resultante
+    const withDay = [...schedule] as WeekSchedule;
+    const cur = dayGroups(withDay[dow]);
+    withDay[dow] = [...cur, group].length === 1 ? group : [...cur, group];
+    const thisDay = daysFromSchedule(withDay).find((d) => d.dow === dow);
+    const occ = thisDay?.occ[group] ?? 0;
+
+    // 2) remove exercícios antigos desse grupo+ocorrência (evita duplicar) e
+    //    materializa os do plano com o slot certo
+    setExercises((prev) => {
+      const cleaned = prev.filter((e) => !(e.group === group && e.slot === occ));
+      const materialized = plan.exercises.map((pe, i) => ({
+        id: `${plan.id}-${occ}-${pe.id}`,
+        name: pe.name,
+        group,
+        sets: pe.sets,
+        reps: pe.reps,
+        load_kg: pe.load_kg ?? null,
+        rest_s: pe.rest_s,
+        muscle: pe.muscle,
+        equipment: pe.equipment,
+        kind: pe.kind,
+        bodyweight: pe.bodyweight,
+        notes: pe.notes,
+        slot: occ,
+        order: pe.order ?? i,
+      }));
+      return [...cleaned, ...materialized];
+    });
+    // 3) grava o schedule
+    setSchedule(withDay);
+    toast.success(`"${plan.name}" aplicado a ${DOW_LABEL[dow]}.`);
+    setPlanPick(null);
   };
 
   const weeksTraining = Math.min(8, Math.floor(sessions.length / 5));
@@ -235,14 +234,25 @@ function TreinoPage() {
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <PageHeader title="Plano de Treino" subtitle="Organizado por dia da semana" />
-        <Button
-          variant={editWeek ? "default" : "outline"}
-          size="sm"
-          onClick={() => setEditWeek((v) => !v)}
-        >
-          <CalendarRange className="size-4 mr-1" /> {editWeek ? "Concluir" : "Editar semana"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant={showPlans ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowPlans((v) => !v)}
+          >
+            <Dumbbell className="size-4 mr-1" /> {showPlans ? "Fechar planos" : "Meus planos"}
+          </Button>
+          <Button
+            variant={editWeek ? "default" : "outline"}
+            size="sm"
+            onClick={() => setEditWeek((v) => !v)}
+          >
+            <CalendarRange className="size-4 mr-1" /> {editWeek ? "Concluir" : "Editar semana"}
+          </Button>
+        </div>
       </div>
+
+      {showPlans && <WorkoutPlansSection />}
 
       {editWeek && (
         <Card className="mb-4">
@@ -502,39 +512,37 @@ function TreinoPage() {
         onSave={saveExercise}
       />
 
-      {/* Atribuição Inteligente: escolher variação do grupo ao adicionar a um dia */}
-      <Dialog open={variationPick != null} onOpenChange={(o) => !o && setVariationPick(null)}>
+      {/* Atribuição Inteligente: escolher qual PLANO salvo usar no dia */}
+      <Dialog open={planPick != null} onOpenChange={(o) => !o && setPlanPick(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              Qual variação de {variationPick ? GROUP_SHORT[variationPick.group] : ""} você quer
-              usar?
+              Qual plano de {planPick ? GROUP_SHORT[planPick.group] : ""} usar em{" "}
+              {planPick ? DOW_LABEL[planPick.dow] : ""}?
             </DialogTitle>
           </DialogHeader>
           <div className="text-xs text-muted-foreground mb-1">
-            Este grupo tem exercícios organizados em variações (dias diferentes). Escolha qual usar
-            em {variationPick ? DOW_LABEL[variationPick.dow] : ""}.
+            Escolha um dos seus planos salvos deste grupo. Os exercícios do plano serão aplicados a
+            este dia.
           </div>
           <div className="space-y-2">
-            {variationPick?.variations.map((slot) => {
-              const exs = exercises.filter(
-                (e) => e.group === variationPick.group && e.slot === slot,
-              );
-              return (
+            {plans
+              .filter((p) => planPick && p.group === planPick.group)
+              .map((plan) => (
                 <button
-                  key={slot}
-                  onClick={() => confirmVariation(slot)}
+                  key={plan.id}
+                  onClick={() => applyPlanToDay(plan.id)}
                   className="w-full text-left rounded-lg border border-border hover:border-primary hover:bg-accent p-3 transition"
                 >
-                  <div className="font-semibold text-sm">
-                    {GROUP_SHORT[variationPick.group]} — Variação {slot + 1}
-                  </div>
+                  <div className="font-semibold text-sm">{plan.name}</div>
                   <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                    {exs.length > 0 ? exs.map((e) => e.name).join(", ") : "sem exercícios"}
+                    {plan.exercises.map((e) => e.name).join(", ")}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    {plan.exercises.length} exercícios
                   </div>
                 </button>
-              );
-            })}
+              ))}
           </div>
         </DialogContent>
       </Dialog>
