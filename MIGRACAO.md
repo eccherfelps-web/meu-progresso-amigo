@@ -688,3 +688,26 @@ rpeVolumeByExercise, loadHistory (analytics) e MesoGoals.
 
 ESLint 0 · TypeScript 0 · build (bun) ok. Testado: histórico recuperado após
 recriar exercício com mesmo nome; nomes diferentes não se misturam.
+
+---
+
+# v1.20.1 — Correção: dia de grupo secundário + gráfico de progressão
+
+**Bug 1 — grupo secundário não reconhecia o dia.** No "Editar exercício", o
+dropdown "Dia do grupo" filtrava por d.group (grupo PRIMÁRIO do dia). Num dia
+misto (ex.: sábado = Legs + Pull), o Pull é secundário, então não aparecia a
+opção "Apenas Sábado" — só "Apenas Quarta" (errado). Corrigido para usar
+d.groups.includes(group) e a ocorrência d.occ[group] daquele grupo. Agora Pull
+reconhece Terça E Sábado.
+
+**Bug 2 — gráfico de progressão abria "vazio" e perdia datas recentes.**
+- O estado inicial era exercises[0]?.id, mas o dropdown lista progressionOptions
+  (deduplicado/ordenado) — divergiam, então abria sem seleção coerente. Agora usa
+  effectiveExId (cai no 1º item do dropdown por padrão), igual ao gráfico de RPE.
+- O loadHistory não ordenava as sessões por data; se o array estava fora de
+  ordem, datas recentes sumiam/desalinhavam. Agora usa exerciseHistory (casa por
+  ID/nome e já ordena cronologicamente). Todas as datas aparecem, inclusive as
+  mais recentes.
+
+ESLint 0 · TypeScript 0 · build (bun) ok. Testado: Pull em ter+sáb; histórico
+completo e ordenado.

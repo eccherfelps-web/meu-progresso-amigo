@@ -19,7 +19,7 @@ import {
   SUB_EXERCISES,
   type SubMuscle,
 } from "@/lib/hlt/subMuscles";
-import { rpeVolumeByExercise, rpeVolumeInsight } from "@/lib/hlt/progression";
+import { rpeVolumeByExercise, rpeVolumeInsight, exerciseHistory } from "@/lib/hlt/progression";
 import type {
   Assessment,
   Exercise,
@@ -79,7 +79,7 @@ function AnalyticsPage() {
   const [schedule] = useLocalStorage<WeekSchedule>(KEYS.schedule, DEFAULT_SCHEDULE);
   const [assessment, setAssessment] = useLocalStorage<Assessment | null>(KEYS.assessment, null);
   const [unlocked] = useLocalStorage<UnlockedAchievement[]>(KEYS.achievements, []);
-  const [selectedExId, setSelectedExId] = useState(exercises[0]?.id ?? "");
+  const [selectedExId, setSelectedExId] = useState("");
 
   const weeksOfData = useMemo(() => {
     if (sessions.length === 0) return 0;
@@ -88,45 +88,6 @@ function AnalyticsPage() {
   }, [sessions]);
 
   const showAssessment = weeksOfData < 4 && !assessment;
-
-  const selectedExName = exercises.find((e) => e.id === selectedExId)?.name ?? "";
-  const loadHistory = useMemo(() => {
-    const normSel = selectedExName
-      ? selectedExName
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .trim()
-      : null;
-    return sessions.flatMap((s) => {
-      const ex = s.exercises.find(
-        (e) =>
-          e.exercise_id === selectedExId ||
-          (normSel != null &&
-            e.name
-              .toLowerCase()
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .trim() === normSel),
-      );
-      if (!ex || ex.sets.length === 0) return [];
-      const maxW = Math.max(...ex.sets.map((x) => x.weight_kg));
-      const rm = Math.max(
-        ...ex.sets.map((x) =>
-          oneRepMax(x.weight_kg, x.reps, {
-            bodyweight: ex.bodyweight,
-            bodyweightKg: ex.bodyweight_kg,
-            exerciseName: ex.name,
-          }),
-        ),
-      );
-      const rpesArr = ex.sets.map((x) => x.rpe).filter((r): r is number => r != null);
-      const avgRpe = rpesArr.length
-        ? +(rpesArr.reduce((a, b) => a + b, 0) / rpesArr.length).toFixed(1)
-        : null;
-      return [{ date: s.date.slice(5, 10), peso: maxW, rm, rpe: avgRpe }];
-    });
-  }, [sessions, selectedExId, selectedExName]);
 
   // Feature 3 — RPE médio por sessão (todas as sessões, para tendência de fadiga)
   const rpeHistory = useMemo(() => {
@@ -145,6 +106,41 @@ function AnalyticsPage() {
       .filter((x): x is { date: string; rpe: number } => x !== null)
       .slice(-20);
   }, [sessions]);
+
+  // Lista de exercícios para o gráfico de progressão, sem nomes repetidos.
+  // Exercícios com o mesmo nome (ex.: "Supino" em Push A e Push B, ou duplicados
+  // por edições antigas) são agrupados: fica o que tem mais sessões no histórico.
+  const progressionOptions = useMemo(() => {
+    const sessionCount = new Map<string, number>();
+    for (const s of sessions)
+      for (const ex of s.exercises)
+        sessionCount.set(ex.exercise_id, (sessionCount.get(ex.exercise_id) ?? 0) + 1);
+    const byName = new Map<string, Exercise>();
+    for (const e of exercises) {
+      const key = e.name.trim().toLowerCase();
+      const cur = byName.get(key);
+      if (!cur || (sessionCount.get(e.id) ?? 0) > (sessionCount.get(cur.id) ?? 0)) {
+        byName.set(key, e);
+      }
+    }
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [exercises, sessions]);
+
+  // exercício efetivamente exibido: o escolhido, ou o 1º do dropdown como padrão
+  const effectiveExId = selectedExId || progressionOptions[0]?.id || "";
+  const effectiveExName = progressionOptions.find((e) => e.id === effectiveExId)?.name ?? "";
+
+  // histórico de carga/1RM do exercício — casa por ID ou nome, já ordenado por
+  // data (mais antiga → mais recente) pela função exerciseHistory.
+  const loadHistory = useMemo(() => {
+    if (!effectiveExId) return [];
+    return exerciseHistory(sessions, effectiveExId, effectiveExName).map((h) => ({
+      date: h.date.slice(5, 10),
+      peso: h.topWeight,
+      rm: h.best1rm,
+      rpe: h.avgRpe,
+    }));
+  }, [sessions, effectiveExId, effectiveExName]);
 
   const best1RM = useMemo(
     () => (loadHistory.length ? Math.max(...loadHistory.map((d) => d.rm)) : 0),
@@ -316,24 +312,6 @@ function AnalyticsPage() {
     [rpeByExercise],
   );
 
-  // Lista de exercícios para o gráfico de progressão, sem nomes repetidos.
-  // Exercícios com o mesmo nome (ex.: "Supino" em Push A e Push B, ou duplicados
-  // por edições antigas) são agrupados: fica o que tem mais sessões no histórico.
-  const progressionOptions = useMemo(() => {
-    const sessionCount = new Map<string, number>();
-    for (const s of sessions)
-      for (const ex of s.exercises)
-        sessionCount.set(ex.exercise_id, (sessionCount.get(ex.exercise_id) ?? 0) + 1);
-    const byName = new Map<string, Exercise>();
-    for (const e of exercises) {
-      const key = e.name.trim().toLowerCase();
-      const cur = byName.get(key);
-      if (!cur || (sessionCount.get(e.id) ?? 0) > (sessionCount.get(cur.id) ?? 0)) {
-        byName.set(key, e);
-      }
-    }
-    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [exercises, sessions]);
   const blindSpots = useMemo(() => findBlindSpots(subMuscleData), [subMuscleData]);
 
   // % de cada grupo no volume dos últimos 7 dias
@@ -369,15 +347,15 @@ function AnalyticsPage() {
   const tips = useMemo(() => {
     const t: { short: string; detail: string }[] = [];
     // Same load 2+ weeks
-    if (sessions.length >= 4 && selectedExId) {
+    if (sessions.length >= 4 && effectiveExId) {
       const recent = sessions
-        .filter((s) => s.exercises.some((e) => e.exercise_id === selectedExId))
+        .filter((s) => s.exercises.some((e) => e.exercise_id === effectiveExId))
         .slice(-4);
       if (recent.length >= 2) {
         const maxes = recent.map((s) =>
           Math.max(
             ...(s.exercises
-              .find((e) => e.exercise_id === selectedExId)
+              .find((e) => e.exercise_id === effectiveExId)
               ?.sets.map((x) => x.weight_kg) ?? [0]),
           ),
         );
@@ -486,7 +464,7 @@ function AnalyticsPage() {
           "Nenhum alerta no momento: sua consistência, volume, nutrição e progressão estão dentro do esperado. Disciplina é o que constrói resultado — siga firme no seu plano.",
       });
     return t;
-  }, [sessions, selectedExId, foods, weights, radarData, profile, schedule]);
+  }, [sessions, effectiveExId, foods, weights, radarData, profile, schedule]);
 
   // Heatmap dos últimos 84 dias (12 semanas), começando no domingo.
   // Estados: treino realizado, dia de treino sem registro (só na SEMANA ATUAL,
@@ -598,7 +576,7 @@ function AnalyticsPage() {
               </div>
             )}
           </div>
-          <Select value={selectedExId} onValueChange={setSelectedExId}>
+          <Select value={effectiveExId} onValueChange={setSelectedExId}>
             <SelectTrigger className="w-56">
               <SelectValue />
             </SelectTrigger>

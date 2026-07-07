@@ -114,9 +114,11 @@ export function ExerciseForm({
     [name, showSug, editing],
   );
 
-  // opções de dia SEMPRE do grupo selecionado no formulário (reativo)
+  // opções de dia SEMPRE do grupo selecionado no formulário (reativo).
+  // Considera dias onde o grupo é secundário (ex.: sábado = Legs + Pull, o Pull
+  // é o segundo grupo) usando d.groups em vez de d.group (primário).
   const slotOptions = useMemo(() => {
-    const groupDays = days.filter((d) => d.group === group);
+    const groupDays = days.filter((d) => d.groups.includes(group));
     const opts: { value: number | null; label: string }[] = [
       {
         value: null,
@@ -126,7 +128,8 @@ export function ExerciseForm({
             : "Todos os dias do grupo",
       },
     ];
-    groupDays.forEach((d) => opts.push({ value: d.occurrence, label: `Apenas ${d.label}` }));
+    // usa a ocorrência DESTE grupo no dia (d.occ[group]), não a do primário
+    groupDays.forEach((d) => opts.push({ value: d.occ[group], label: `Apenas ${d.label}` }));
     return opts;
   }, [days, group]);
 
