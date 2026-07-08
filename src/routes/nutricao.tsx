@@ -168,7 +168,12 @@ function NutricaoPage() {
                         {i.carbs_g.toFixed(1)} · G {i.fat_g.toFixed(1)}
                       </div>
                     </div>
-                    <Button size="icon" variant="ghost" onClick={() => removeItem(m.key, idx)}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeItem(m.key, idx)}
+                      aria-label="Remover alimento"
+                    >
                       <Trash2 className="size-4 text-danger" />
                     </Button>
                   </div>
@@ -333,10 +338,11 @@ function AddFoodDialog({ onAdd }: { onAdd: (i: FoodItem) => void }) {
               />
             </div>
             <Input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="gramas"
               value={grams}
-              onChange={(e) => setGrams(e.target.value)}
+              onChange={(e) => setGrams(e.target.value.replace(",", "."))}
             />
           </div>
           <div className="max-h-60 overflow-y-auto border border-border rounded-md">
@@ -404,28 +410,36 @@ function AddFoodDialog({ onAdd }: { onAdd: (i: FoodItem) => void }) {
                 className="col-span-2"
               />
               <Input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="kcal"
                 value={custom.kcal}
-                onChange={(e) => setCustom({ ...custom, kcal: e.target.value })}
+                onChange={(e) => setCustom({ ...custom, kcal: e.target.value.replace(",", ".") })}
               />
               <Input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="proteína g"
                 value={custom.protein_g}
-                onChange={(e) => setCustom({ ...custom, protein_g: e.target.value })}
+                onChange={(e) =>
+                  setCustom({ ...custom, protein_g: e.target.value.replace(",", ".") })
+                }
               />
               <Input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="carbs g"
                 value={custom.carbs_g}
-                onChange={(e) => setCustom({ ...custom, carbs_g: e.target.value })}
+                onChange={(e) =>
+                  setCustom({ ...custom, carbs_g: e.target.value.replace(",", ".") })
+                }
               />
               <Input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="gordura g"
                 value={custom.fat_g}
-                onChange={(e) => setCustom({ ...custom, fat_g: e.target.value })}
+                onChange={(e) => setCustom({ ...custom, fat_g: e.target.value.replace(",", ".") })}
               />
             </div>
             <Button onClick={addCustom} className="w-full mt-2" size="sm">

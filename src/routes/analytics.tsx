@@ -1297,7 +1297,7 @@ function AnalyticsPage() {
                   }}
                   labelStyle={{ color: "var(--color-muted-foreground)", fontSize: 11 }}
                   formatter={(v: number, name: string) => [
-                    name === "Calorias" ? `${Math.round(v)} kcal` : `${v} kg`,
+                    name === "Calorias" ? `${Math.round(v)} kcal` : `${Number(v).toFixed(1)} kg`,
                     name,
                   ]}
                 />

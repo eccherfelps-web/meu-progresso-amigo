@@ -62,7 +62,8 @@ export function WorkoutPlansSection() {
     setPlans((prev) => [...prev, copy]);
     toast.success("Plano duplicado.");
   };
-  const remove = (id: string) => {
+  const remove = (id: string, name: string) => {
+    if (!confirm(`Excluir o plano "${name}"? Esta ação não pode ser desfeita.`)) return;
     setPlans((prev) => prev.filter((p) => p.id !== id));
     toast.success("Plano removido.");
   };
@@ -156,7 +157,7 @@ export function WorkoutPlansSection() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => remove(plan.id)}
+                    onClick={() => remove(plan.id, plan.name)}
                     aria-label="Excluir"
                   >
                     <Trash2 className="size-4 text-danger" />

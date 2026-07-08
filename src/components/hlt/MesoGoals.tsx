@@ -43,6 +43,7 @@ export function MesoGoalsSection() {
   const active = goals.filter((g) => !g.archived);
 
   const remove = (id: string) => {
+    if (!confirm("Excluir esta meta? Esta ação não pode ser desfeita.")) return;
     setGoals((prev) => prev.filter((g) => g.id !== id));
     toast.success("Meta removida.");
   };
@@ -238,7 +239,7 @@ function GoalForm({
   };
 
   return (
-    <DialogContent className="max-w-sm">
+    <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>Nova meta de ciclo</DialogTitle>
       </DialogHeader>

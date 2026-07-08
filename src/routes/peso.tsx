@@ -234,21 +234,25 @@ function MeasuresSection({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
         <Input
           placeholder="Peito (cm)"
+          inputMode="decimal"
           value={m.chest_cm}
           onChange={(e) => setM({ ...m, chest_cm: e.target.value })}
         />
         <Input
           placeholder="Cintura (cm)"
+          inputMode="decimal"
           value={m.waist_cm}
           onChange={(e) => setM({ ...m, waist_cm: e.target.value })}
         />
         <Input
           placeholder="Braços (cm)"
+          inputMode="decimal"
           value={m.arms_cm}
           onChange={(e) => setM({ ...m, arms_cm: e.target.value })}
         />
         <Input
           placeholder="Coxas (cm)"
+          inputMode="decimal"
           value={m.thighs_cm}
           onChange={(e) => setM({ ...m, thighs_cm: e.target.value })}
         />

@@ -711,3 +711,42 @@ reconhece Terça E Sábado.
 
 ESLint 0 · TypeScript 0 · build (bun) ok. Testado: Pull em ter+sáb; histórico
 completo e ordenado.
+
+---
+
+# v1.20.2 — Varredura completa: bugs de input, confirmações e mobile
+
+Auditoria sistemática do sistema. Correções:
+
+**Bugs de dados (vírgula decimal quebrando valores):**
+- Perfil: "Peso atual" e "Peso meta" usavam `+e.target.value` direto — digitar
+  "58,5" virava `NaN`. Corrigido para tratar vírgula e usar inputMode decimal.
+- Treino ativo: `completeSet()` (registro de série) não tratava vírgula no peso
+  (só a edição de série já tratava). "62,5" virava "62". Corrigido.
+- Nutrição: campos de gramas/kcal/proteína/carbo/gordura não tratavam vírgula.
+  Corrigido + inputMode decimal.
+- ExerciseForm (carga inicial) e Treino ativo (peso): trocado `type="number"`
+  por `type="text"` com `inputMode="decimal"` — no iOS, `type="number"` pode
+  bloquear a vírgula mesmo com inputMode setado.
+- Medidas corporais (peito/cintura/braços/coxas): adicionado inputMode decimal
+  para abrir teclado numérico no mobile.
+- Tooltip do gráfico combinado (nutrição+peso): peso sem arredondar
+  (poluição visual) — corrigido para 1 casa decimal.
+
+**Confirmações antes de exclusão (faltavam):**
+- Excluir um Plano de treino agora pede confirmação (antes apagava direto —
+  arriscado, já que planos levam tempo pra montar).
+- Excluir uma Meta (MesoGoals) agora pede confirmação.
+
+**Mobile:**
+- Bottom nav (6 itens) estava apertada em telas estreitas (iPhone SE etc.):
+  reduzido para altura mínima de toque confortável, truncamento seguro do
+  texto, e `padding-bottom: env(safe-area-inset-bottom)` para não colidir com
+  a barra de gestos do iOS.
+- 2 modais (Metas, Planos por dia) sem `max-height`/scroll — podiam estourar a
+  tela em conteúdo longo. Adicionado `max-h-[85vh] overflow-y-auto`.
+
+**Acessibilidade:**
+- Botão de remover item de refeição sem `aria-label` — corrigido.
+
+ESLint 0 · TypeScript 0 · build (bun) ok.

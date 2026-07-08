@@ -273,7 +273,7 @@ function TreinoAtivo() {
 
   const completeSet = () => {
     if (!current || !currentLog) return;
-    const w = parseFloat(setInput.weight) || current.load_kg || 0;
+    const w = parseFloat(setInput.weight.replace(",", ".")) || current.load_kg || 0;
     const r = parseInt(setInput.reps) || 0;
     if (!r) {
       toast.error("Informe as reps");
@@ -800,13 +800,15 @@ function TreinoAtivo() {
           <div>
             <label className="text-[11px] text-muted-foreground block mb-1">Peso (kg)</label>
             <Input
-              type="number"
+              type="text"
               step="0.5"
               inputMode="decimal"
               className="h-12 text-lg text-center font-semibold"
               placeholder={current.load_kg ? String(current.load_kg) : "0"}
               value={setInput.weight}
-              onChange={(e) => setSetInput({ ...setInput, weight: e.target.value })}
+              onChange={(e) =>
+                setSetInput({ ...setInput, weight: e.target.value.replace(",", ".") })
+              }
               aria-label="Peso em kg"
             />
           </div>

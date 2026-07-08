@@ -79,18 +79,25 @@ function PerfilPage() {
           </Field>
           <Field label="Peso atual (kg)">
             <Input
-              type="number"
-              step="0.1"
+              type="text"
+              inputMode="decimal"
               value={form.weight_current_kg}
-              onChange={(e) => setForm({ ...form, weight_current_kg: +e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  weight_current_kg: +e.target.value.replace(",", ".") || 0,
+                })
+              }
             />
           </Field>
           <Field label="Peso meta (kg)">
             <Input
-              type="number"
-              step="0.1"
+              type="text"
+              inputMode="decimal"
               value={form.weight_goal_kg}
-              onChange={(e) => setForm({ ...form, weight_goal_kg: +e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, weight_goal_kg: +e.target.value.replace(",", ".") || 0 })
+              }
             />
           </Field>
           <Field label="Limite gordura/dia (g)">

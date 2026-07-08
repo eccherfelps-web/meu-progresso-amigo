@@ -346,7 +346,7 @@ export function ExerciseForm({
               <label className="text-[11px] text-muted-foreground">Carga inicial</label>
               <div className="flex gap-1">
                 <Input
-                  type="number"
+                  type="text"
                   step="0.5"
                   inputMode="decimal"
                   value={load}

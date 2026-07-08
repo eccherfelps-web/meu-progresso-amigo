@@ -514,7 +514,7 @@ function TreinoPage() {
 
       {/* Atribuição Inteligente: escolher qual PLANO salvo usar no dia */}
       <Dialog open={planPick != null} onOpenChange={(o) => !o && setPlanPick(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Qual plano de {planPick ? GROUP_SHORT[planPick.group] : ""} usar em{" "}

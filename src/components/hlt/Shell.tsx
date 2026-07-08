@@ -82,14 +82,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
           );
         })}
         <div className="mt-auto px-2 text-xs text-muted-foreground flex items-center gap-1.5">
-          <syncLabel.icon className="size-3.5" /> {syncLabel.txt} · v1.20.1 · {profile.name}
+          <syncLabel.icon className="size-3.5" /> {syncLabel.txt} · v1.20.2 · {profile.name}
         </div>
       </aside>
 
       <main className="flex-1 pb-24 md:pb-6 min-w-0">{children}</main>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-card/95 backdrop-blur">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         <div className="grid grid-cols-6">
           {NAV.map((n) => {
             const active = n.to === "/" ? path === "/" : path.startsWith(n.to);
@@ -97,12 +97,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <Link
                 key={n.to}
                 to={n.to}
-                className={`flex flex-col items-center gap-0.5 py-2.5 text-[10px] ${
+                className={`flex flex-col items-center justify-center gap-0.5 py-2 min-h-[52px] text-[9px] leading-tight px-0.5 ${
                   active ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                <n.icon className="size-5" />
-                {n.label}
+                <n.icon className="size-5 shrink-0" />
+                <span className="truncate max-w-full">{n.label}</span>
               </Link>
             );
           })}
