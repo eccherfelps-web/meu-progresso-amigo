@@ -34,7 +34,12 @@ import { toast } from "sonner";
 import { Pencil, ChevronLeft, Pause, Play, RotateCcw, BellRing } from "lucide-react";
 import { playAlert, unlockAudio } from "@/lib/hlt/sound";
 import { oneRepMax } from "@/lib/hlt/onerm";
-import { compareToLast, suggestLoad, detectStagnation } from "@/lib/hlt/progression";
+import {
+  compareToLast,
+  suggestLoad,
+  detectStagnation,
+  normExerciseName,
+} from "@/lib/hlt/progression";
 import { TrendingUp, TrendingDown, Minus, Lightbulb, AlertTriangle } from "lucide-react";
 import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
 import type { Profile, WeightLog } from "@/lib/hlt/types";
@@ -189,11 +194,15 @@ function TreinoAtivo() {
   const progressPct = Math.round((doneSets * 100) / totalSets);
 
   // Past PR lookups from previous sessions
-  function pastBest(exId: string) {
+  function pastBest(exId: string, exName?: string) {
     let bestW = 0,
       bestR = 0;
+    const normName = exName ? normExerciseName(exName) : null;
     for (const s of sessions) {
-      const ex = s.exercises.find((x) => x.exercise_id === exId);
+      const ex = s.exercises.find(
+        (x) =>
+          x.exercise_id === exId || (normName != null && normExerciseName(x.name) === normName),
+      );
       if (!ex) continue;
       for (const st of ex.sets) {
         if (st.weight_kg > bestW) bestW = st.weight_kg;
@@ -204,8 +213,11 @@ function TreinoAtivo() {
   }
   const lastUse = useMemo(() => {
     if (!current) return null;
+    const normName = normExerciseName(current.name);
     for (let i = sessions.length - 1; i >= 0; i--) {
-      const ex = sessions[i].exercises.find((x) => x.exercise_id === current.id);
+      const ex = sessions[i].exercises.find(
+        (x) => x.exercise_id === current.id || normExerciseName(x.name) === normName,
+      );
       if (ex && ex.sets.length) return ex.sets[ex.sets.length - 1];
     }
     return null;
@@ -260,7 +272,7 @@ function TreinoAtivo() {
     const out: { exercise: string; type: "weight" | "reps"; value: number }[] = [];
     for (const log of Object.values(allLogs)) {
       if (!log.sets.length) continue;
-      const past = pastBest(log.exercise_id);
+      const past = pastBest(log.exercise_id, log.name);
       const bestW = Math.max(...log.sets.map((x) => x.weight_kg));
       const bestR = Math.max(...log.sets.map((x) => x.reps));
       if (bestW > past.bestW && past.bestW > 0)

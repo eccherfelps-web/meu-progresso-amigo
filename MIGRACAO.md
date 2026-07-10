@@ -750,3 +750,33 @@ Auditoria sistemática do sistema. Correções:
 - Botão de remover item de refeição sem `aria-label` — corrigido.
 
 ESLint 0 · TypeScript 0 · build (bun) ok.
+
+---
+
+# v1.20.3 — Dropdown de esforço×carga sem duplicatas + recordes corrigidos
+
+**1. Dropdown "Esforço × Carga por exercício" com nomes repetidos.** O mesmo
+bug já corrigido no dropdown de progressão (v1.20) também existia aqui: a
+lista era indexada por `exercise_id`, não por nome. Um exercício usado com IDs
+diferentes (recriado, ou aplicado via planos em dias/ocorrências diferentes)
+aparecia duplicado. Corrigido com a mesma deduplicação por nome normalizado,
+priorizando o ID com mais séries de RPE registradas. O gráfico continua
+puxando o histórico completo (todas as sessões, todos os IDs) via nameHint.
+
+**2. Sistema de recordes (PRs) não reconhecia o histórico real após recriar um
+exercício — bug crítico.** `pastBest()` e `lastUse` (treino ativo) buscavam o
+recorde anterior só por `exercise_id`. Como os IDs mudam ao recriar um
+exercício (ou ao aplicar planos em ocorrências diferentes), o sistema perdia o
+recorde real e:
+- Parava de reconhecer QUALQUER PR novo até acumular sessões de novo sob o ID
+  atual (a condição `past.bestW > 0` bloqueava tudo enquanto o histórico
+  "sumido" mostrava zero).
+- Uma vez essa base "zerada" reconstruída, podia comemorar como recorde um
+  peso na verdade MENOR que o recorde histórico real (pré-recriação).
+
+Corrigido: `pastBest` e `lastUse` agora casam por ID OU nome normalizado — o
+recorde real é reconhecido mesmo após recriar o exercício. Testado: recriar um
+exercício com recorde de 60kg recupera esse valor; um novo peso de 62kg é
+corretamente reconhecido como PR contra o recorde real.
+
+ESLint 0 · TypeScript 0 · build (bun) ok.

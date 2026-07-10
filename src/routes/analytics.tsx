@@ -19,7 +19,12 @@ import {
   SUB_EXERCISES,
   type SubMuscle,
 } from "@/lib/hlt/subMuscles";
-import { rpeVolumeByExercise, rpeVolumeInsight, exerciseHistory } from "@/lib/hlt/progression";
+import {
+  rpeVolumeByExercise,
+  rpeVolumeInsight,
+  exerciseHistory,
+  normExerciseName,
+} from "@/lib/hlt/progression";
 import type {
   Assessment,
   Exercise,
@@ -283,13 +288,23 @@ function AnalyticsPage() {
   const subMuscleData = useMemo(() => subMuscleStats(sessions), [sessions]);
 
   // Exercícios que têm ao menos uma série com RPE registrado (para o seletor)
+  // Exercícios com RPE registrado, DEDUPLICADOS por nome — do contrário, um
+  // exercício recriado (novo ID) ou usado em variações de plano diferentes
+  // aparece repetido na lista com o mesmo nome.
   const rpeExerciseOptions = useMemo(() => {
-    const withRpe = new Map<string, string>();
+    const bestByName = new Map<string, { id: string; name: string; rpeSets: number }>();
     for (const s of sessions)
-      for (const ex of s.exercises)
-        if (ex.sets.some((st) => st.rpe != null)) withRpe.set(ex.exercise_id, ex.name);
-    return [...withRpe.entries()]
-      .map(([id, name]) => ({ id, name }))
+      for (const ex of s.exercises) {
+        const rpeSets = ex.sets.filter((st) => st.rpe != null).length;
+        if (rpeSets === 0) continue;
+        const key = normExerciseName(ex.name);
+        const cur = bestByName.get(key);
+        if (!cur || rpeSets > cur.rpeSets) {
+          bestByName.set(key, { id: ex.exercise_id, name: ex.name, rpeSets });
+        }
+      }
+    return [...bestByName.values()]
+      .map(({ id, name }) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [sessions]);
 
