@@ -187,11 +187,6 @@ export const GROUP_LABEL_SHORT: Record<TrainingGroup, string> = {
   pull: "Pull",
   legs: "Legs",
 };
-const GROUP_FOCUS: Record<"push" | "pull" | "legs", string> = {
-  push: "Peito • Ombros • Tríceps",
-  pull: "Costas • Bíceps • Antebraço",
-  legs: "Pernas • Panturrilha",
-};
 
 export interface TrainingDay {
   dow: number; // 0=Dom … 6=Sáb

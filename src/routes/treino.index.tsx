@@ -13,7 +13,13 @@ import {
   exercisesForDay,
   type TrainingDay,
 } from "@/lib/hlt/defaults";
-import type { Exercise, WeekSchedule, WorkoutSession, WorkoutPlan } from "@/lib/hlt/types";
+import type {
+  Exercise,
+  WeekSchedule,
+  WorkoutSession,
+  WorkoutPlan,
+  ActiveWorkoutDraft,
+} from "@/lib/hlt/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ExerciseForm } from "@/components/hlt/ExerciseForm";
@@ -32,6 +38,7 @@ import {
   ChevronUp,
   ChevronDown,
   Dumbbell,
+  Timer,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -228,6 +235,10 @@ function TreinoPage() {
   };
 
   const weeksTraining = Math.min(8, Math.floor(sessions.length / 5));
+  const [activeDraft] = useLocalStorage<ActiveWorkoutDraft | null>(KEYS.activeWorkout, null);
+  const draftMinutesAgo = activeDraft
+    ? Math.max(0, Math.round((Date.now() - activeDraft.startedAt) / 60000))
+    : 0;
   const deload = weeksTraining >= 8;
 
   return (
@@ -253,6 +264,41 @@ function TreinoPage() {
       </div>
 
       {showPlans && <WorkoutPlansSection />}
+
+      {activeDraft && (
+        <Card className="mb-4 border-primary/40 bg-primary/5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Timer className="size-4 text-primary shrink-0" />
+              <div className="text-sm">
+                <span className="font-semibold">
+                  Treino de {GROUP_SHORT[activeDraft.type] ?? activeDraft.type} em andamento
+                </span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · iniciado há {draftMinutesAgo} min ·{" "}
+                  {Object.values(activeDraft.logs).reduce((a, l) => a + l.sets.length, 0)} séries
+                  registradas
+                </span>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() =>
+                navigate({
+                  to: "/treino/ativo",
+                  search: {
+                    type: activeDraft.type as "push" | "pull" | "legs",
+                    day: activeDraft.day ?? undefined,
+                  },
+                })
+              }
+            >
+              Continuar treino
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {editWeek && (
         <Card className="mb-4">

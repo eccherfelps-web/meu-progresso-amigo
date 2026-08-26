@@ -7,7 +7,6 @@ import {
   DEFAULT_EXERCISES,
   DEFAULT_PROFILE,
   DEFAULT_SCHEDULE,
-  daysFromSchedule,
   dayGroups,
 } from "@/lib/hlt/defaults";
 import { consecutiveTrainingStreak, scheduleStatus } from "@/lib/hlt/streakHelpers";
@@ -35,7 +34,7 @@ import type {
   WorkoutSession,
   WeekSchedule,
 } from "@/lib/hlt/types";
-import { dailyMacros, todayISO, toLocalISO, localDayOf } from "@/lib/hlt/calc";
+import { dailyMacros, toLocalISO, localDayOf } from "@/lib/hlt/calc";
 import {
   LineChart,
   Line,
@@ -64,7 +63,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Lightbulb, Trophy, Check, AlertTriangle, ChevronDown, TrendingUp } from "lucide-react";
-import { oneRepMax } from "@/lib/hlt/onerm";
 import { ACHIEVEMENTS, type UnlockedAchievement } from "@/lib/hlt/achievements";
 import { toast } from "sonner";
 
@@ -93,24 +91,6 @@ function AnalyticsPage() {
   }, [sessions]);
 
   const showAssessment = weeksOfData < 4 && !assessment;
-
-  // Feature 3 — RPE médio por sessão (todas as sessões, para tendência de fadiga)
-  const rpeHistory = useMemo(() => {
-    return sessions
-      .map((s) => {
-        const rpes = s.exercises.flatMap((e) =>
-          e.sets.map((st) => st.rpe).filter((r): r is number => r != null),
-        );
-        return rpes.length
-          ? {
-              date: s.date.slice(5, 10),
-              rpe: +(rpes.reduce((a, b) => a + b, 0) / rpes.length).toFixed(1),
-            }
-          : null;
-      })
-      .filter((x): x is { date: string; rpe: number } => x !== null)
-      .slice(-20);
-  }, [sessions]);
 
   // Lista de exercícios para o gráfico de progressão, sem nomes repetidos.
   // Exercícios com o mesmo nome (ex.: "Supino" em Push A e Push B, ou duplicados

@@ -173,3 +173,17 @@ export interface PlanExercise {
   notes?: string;
   order?: number;
 }
+
+/** Rascunho do treino em andamento — permite retomar de onde parou se o
+ *  usuário sair da tela sem querer (troca de aba, navegação acidental). */
+export interface ActiveWorkoutDraft {
+  type: string;
+  day: number | null;
+  phase: "warmup" | "workout" | "done";
+  startedAt: number;
+  order: string[];
+  logs: Record<string, SessionExercise>;
+  exIdx: number;
+  prs: { exercise: string; type: "weight" | "reps"; value: number }[];
+  extraExerciseIds: string[]; // exercícios adicionados avulsos durante a sessão
+}

@@ -780,3 +780,81 @@ exercício com recorde de 60kg recupera esse valor; um novo peso de 62kg é
 corretamente reconhecido como PR contra o recorde real.
 
 ESLint 0 · TypeScript 0 · build (bun) ok.
+
+---
+
+# v1.21 — Treino em andamento persiste + adicionar exercício avulso
+
+**1. Treino não perde mais o progresso ao sair da tela.** Antes, todo o estado
+do treino ativo (séries registradas, RPE, recordes, exercício atual, fase)
+era `useState` puro — se você navegasse para outra aba (Nutrição, Peso, etc.)
+e voltasse, tudo se perdia.
+
+Agora o progresso é salvo automaticamente (mesmo armazenamento permanente do
+resto do app) a cada mudança relevante. Ao reabrir "Iniciar Treino" do mesmo
+dia, o treino retoma exatamente de onde parou — sem pedir nada. Se você tentar
+iniciar um treino DIFERENTE enquanto há um em andamento, o app avisa antes de
+descartar: "Você tem um treino de Push em andamento (há X min) — continuar ou
+começar este novo?". Um banner "Treino em andamento" também aparece no topo da
+lista de dias (Plano de Treino), com botão "Continuar treino", para você ver
+de cara que nada foi perdido mesmo sem lembrar o dia certo.
+
+Rascunho é limpo automaticamente ao salvar o treino com sucesso.
+
+**2. Adicionar exercício durante o treino.** Botão "+ Adicionar" no topo da
+tela de treino ativo abre um seletor com busca, dividido em:
+- **Da sua semana** — outros exercícios do mesmo grupo (de outro dia/plano)
+  ainda não incluídos hoje.
+- **Banco de exercícios** — todo o restante cadastrado, de qualquer grupo.
+
+O exercício escolhido entra na fila logo após o atual (não altera o plano
+fixo do dia — vale só para esta sessão).
+
+Novo tipo `ActiveWorkoutDraft` (types.ts) e chave `KEYS.activeWorkout`.
+ESLint 0 · TypeScript 0 · build (bun) ok. Testado: deduplicação do picker por
+nome; condição de corrida na hidratação do rascunho corrigida (usa state real
+`draftResolved`, não só ref, para não sobrescrever o progresso retomado).
+
+---
+
+# v1.21.1 — Revalidação completa: bug estrutural crítico corrigido
+
+Auditoria completa pós-v1.21, focada nas funcionalidades novas (rascunho de
+treino, adicionar exercício avulso). Encontrado e corrigido 1 bug estrutural
+importante + limpeza de código morto.
+
+**BUG CRÍTICO — retomar treino diferente podia não hidratar corretamente.**
+No fluxo "Você tem um treino de Push em andamento — continuar?", ao escolher
+"continuar", o código chamava `navigate()` para a MESMA rota
+(`/treino/ativo`) só trocando os parâmetros (type/day). O TanStack Router
+reaproveita a instância do componente nesse caso (não desmonta), então o
+estado local (order/logs/fase) do treino ANTERIOR ficava preso e a trava que
+impede a hidratação de rodar duas vezes bloqueava o carregamento do rascunho
+retomado.
+
+Corrigido com uma mudança estrutural: o componente foi separado em um wrapper
+externo (lê os parâmetros da URL) e um componente interno com `key={type-day}`.
+Isso força o React a desmontar e remontar de verdade sempre que o treino
+mudar — garantindo que a hidratação do rascunho rode do zero, de forma
+confiável, independente de como o roteador decide reaproveitar ou não a
+instância. Esse bug não tinha sintoma visível em uso normal (só no caminho
+específico de "trocar de treino com um rascunho pendente"), mas foi
+encontrado e corrigido nesta revalidação antes de causar problema real.
+
+**Limpeza de código morto** (sem impacto funcional, reduz o bundle):
+- Removida a variável `progressPct` (não usada, tinha divisão por zero não
+  protegida) e o import não usado `Trophy` em treino.ativo.tsx.
+- Removido o cálculo antigo `rpeHistory` (RPE médio diário) em analytics.tsx —
+  resquício da versão pré-v1.18, já substituído pela análise por exercício.
+  Junto, os imports órfãos `daysFromSchedule`, `todayISO`, `oneRepMax`.
+- Removida a constante `GROUP_FOCUS` não utilizada em defaults.ts.
+- Corrigido 1 erro de formatação (prettier) em supabase.ts.
+
+**Revalidação com testes automatizados** (rodados com TZ=America/Sao_Paulo,
+igual ao dispositivo do usuário): histórico por nome após recriar exercício,
+streak tolerando "hoje sem treino", fuso horário não pulando o dia, RPE×Volume
+com deduplicação e série crítica, normalização de nomes, e detecção de
+recorde (PR) após recriar exercício — todos passando.
+
+ESLint 0 (0 erros, 1 warning inofensivo pré-existente) · TypeScript 0 (com
+--noUnusedLocals também limpo) · build (bun) do zero ok.

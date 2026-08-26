@@ -14,12 +14,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLocalStorage, KEYS } from "@/lib/hlt/storage";
 import {
   DEFAULT_EXERCISES,
   DEFAULT_SCHEDULE,
   daysFromSchedule,
   exercisesForDay,
+  GROUP_LABEL_SHORT,
 } from "@/lib/hlt/defaults";
 import type {
   Exercise,
@@ -29,7 +31,7 @@ import type {
   WorkoutSession,
   WorkoutSet,
 } from "@/lib/hlt/types";
-import { Trophy, Timer, Check, SkipForward } from "lucide-react";
+import { Timer, Check, SkipForward, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Pencil, ChevronLeft, Pause, Play, RotateCcw, BellRing } from "lucide-react";
 import { playAlert, unlockAudio } from "@/lib/hlt/sound";
@@ -42,7 +44,7 @@ import {
 } from "@/lib/hlt/progression";
 import { TrendingUp, TrendingDown, Minus, Lightbulb, AlertTriangle } from "lucide-react";
 import { DEFAULT_PROFILE } from "@/lib/hlt/defaults";
-import type { Profile, WeightLog } from "@/lib/hlt/types";
+import type { Profile, WeightLog, ActiveWorkoutDraft } from "@/lib/hlt/types";
 import { checkAchievements } from "@/lib/hlt/achievements";
 
 export const Route = createFileRoute("/treino/ativo")({
@@ -54,14 +56,28 @@ export const Route = createFileRoute("/treino/ativo")({
   component: TreinoAtivo,
 });
 
+// Wrapper: lê os parâmetros da URL e usa `key` para forçar um remount LIMPO
+// do componente interno sempre que o treino mudar (type/day diferentes).
+// Isso é necessário porque o TanStack Router reaproveita a instância do
+// componente ao navegar dentro da mesma rota só trocando search params — sem
+// a key, o estado local (order/logs/fase/rascunho já resolvido) do treino
+// anterior vazaria para o treino novo em vez de reiniciar do zero.
 function TreinoAtivo() {
   const { type, day } = Route.useSearch();
+  return <TreinoAtivoInner key={`${type}-${day ?? "x"}`} type={type} day={day} />;
+}
+
+function TreinoAtivoInner({ type, day }: { type: MuscleGroup; day?: number }) {
   const navigate = useNavigate();
   const [exercises] = useLocalStorage<Exercise[]>(KEYS.exercises, DEFAULT_EXERCISES);
   const [sessions, setSessions] = useLocalStorage<WorkoutSession[]>(KEYS.sessions, []);
   const [schedule] = useLocalStorage<WeekSchedule>(KEYS.schedule, DEFAULT_SCHEDULE);
   const [profile] = useLocalStorage<Profile>(KEYS.profile, DEFAULT_PROFILE);
   const [weightLogs] = useLocalStorage<WeightLog[]>(KEYS.weights, []);
+  const [draft, setDraft, draftHydrated] = useLocalStorage<ActiveWorkoutDraft | null>(
+    KEYS.activeWorkout,
+    null,
+  );
   // peso corporal atual: último registro do histórico, ou o do perfil
   const currentBodyweight =
     [...weightLogs].sort((a, b) => b.date.localeCompare(a.date))[0]?.weight_kg ??
@@ -71,20 +87,64 @@ function TreinoAtivo() {
     [schedule, day],
   );
 
+  // exercícios adicionados avulsos durante ESTA sessão (não fazem parte do
+  // plano do dia, mas foram escolhidos do banco ou de outro dia da semana)
+  const [extraIds, setExtraIds] = useState<string[]>([]);
+  const [addExOpen, setAddExOpen] = useState(false);
+
   const list = useMemo(() => {
     // Se veio de um dia do cronograma, usa TODOS os grupos daquele dia
     // (ex.: sábado = Legs + Push) respeitando o slot por ocorrência de grupo.
-    if (dayInfo) return exercisesForDay(exercises, dayInfo);
-    // fallback: sem dia definido, filtra pelo type único recebido
-    return exercises.filter((e) => e.group === (type as MuscleGroup));
-  }, [exercises, type, dayInfo]);
+    const base = dayInfo
+      ? exercisesForDay(exercises, dayInfo)
+      : exercises.filter((e) => e.group === (type as MuscleGroup));
+    if (extraIds.length === 0) return base;
+    const baseIds = new Set(base.map((e) => e.id));
+    const extras = extraIds
+      .map((id) => exercises.find((e) => e.id === id))
+      .filter((e): e is Exercise => e != null && !baseIds.has(e.id));
+    return [...base, ...extras];
+  }, [exercises, type, dayInfo, extraIds]);
+
+  // opções do picker "Adicionar exercício": os da semana (mesmo grupo, outros
+  // dias/planos) primeiro, depois o resto do banco — ambos sem duplicar nome
+  // e sem repetir o que já está na sessão de hoje.
+  const [addExQuery, setAddExQuery] = useState("");
+  const weekOptions = useMemo(() => {
+    const listIds = new Set(list.map((e) => e.id));
+    const seen = new Set<string>();
+    return exercises
+      .filter((e) => e.group === (type as MuscleGroup) && !listIds.has(e.id))
+      .filter((e) => {
+        const key = normExerciseName(e.name);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [exercises, type, list]);
+  const bankOptions = useMemo(() => {
+    const excludeIds = new Set(list.map((e) => e.id));
+    const seen = new Set(weekOptions.map((e) => normExerciseName(e.name)));
+    return exercises
+      .filter((e) => !excludeIds.has(e.id) && !weekOptions.some((w) => w.id === e.id))
+      .filter((e) => {
+        const key = normExerciseName(e.name);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [exercises, list, weekOptions]);
+  const addExFilter = (e: Exercise) =>
+    !addExQuery.trim() || e.name.toLowerCase().includes(addExQuery.trim().toLowerCase());
 
   const [phase, setPhase] = useState<"warmup" | "workout" | "done">("warmup");
   const [confirmFinish, setConfirmFinish] = useState(false); // finalizar no meio do treino
   const [confirmSave, setConfirmSave] = useState(false); // salvar na tela de resumo
   const [pendingRpe, setPendingRpe] = useState<number | null>(null); // RPE da série recém-registrada
   const [warmupLeft, setWarmupLeft] = useState(300);
-  const [startedAt] = useState(Date.now());
+  const [startedAt, setStartedAt] = useState(Date.now());
   const [editSet, setEditSet] = useState<{ idx: number; weight: string; reps: string } | null>(
     null,
   );
@@ -95,7 +155,63 @@ function TreinoAtivo() {
   // antes dos personalizados carregarem do banco.
   const [order, setOrder] = useState<string[]>([]);
   const [logs, setLogs] = useState<Record<string, SessionExercise>>({});
+  const [prs, setPrs] = useState<{ exercise: string; type: "weight" | "reps"; value: number }[]>(
+    [],
+  );
+
+  // true assim que a decisão sobre um rascunho salvo foi aplicada ao estado
+  // (retomar, descartar, ou não havia nenhum) — é STATE (não só ref) de
+  // propósito: o efeito de reset abaixo precisa rodar DEPOIS que order/logs
+  // restaurados já estejam no render; com só uma ref, ele podia rodar no
+  // mesmo ciclo com valores antigos e sobrescrever o que acabou de ser retomado.
+  const draftDecisionRef = useRef(false); // trava para a decisão rodar 1x só
+  const [draftResolved, setDraftResolved] = useState(false);
+
+  // Retoma o treino de onde parou, se houver um rascunho salvo para o MESMO
+  // treino (mesmo grupo/dia). Se houver um rascunho de outro treino, pergunta
+  // antes de descartar — evita perder progresso não salvo por engano.
   useEffect(() => {
+    if (!draftHydrated || draftDecisionRef.current) return;
+    draftDecisionRef.current = true;
+    if (!draft) {
+      setDraftResolved(true);
+      return;
+    }
+    const sameWorkout = draft.type === type && draft.day === (day ?? null);
+    if (sameWorkout) {
+      setPhase(draft.phase === "done" ? "done" : "workout"); // retomar pula o aquecimento
+      setStartedAt(draft.startedAt);
+      setOrder(draft.order);
+      setLogs(draft.logs);
+      setExIdx(draft.exIdx);
+      setPrs(draft.prs);
+      setExtraIds(draft.extraExerciseIds ?? []);
+      setDraftResolved(true);
+      toast.info("Treino retomado de onde você parou.");
+    } else {
+      const startedMin = Math.max(0, Math.round((Date.now() - draft.startedAt) / 60000));
+      const draftLabel = GROUP_LABEL_SHORT[draft.type as MuscleGroup] ?? draft.type;
+      const wantsResume = confirm(
+        `Você tem um treino de ${draftLabel} em andamento (iniciado há ${startedMin} min).\n\n` +
+          `Toque OK para continuar ele, ou Cancelar para descartá-lo e iniciar este treino agora.`,
+      );
+      if (wantsResume) {
+        navigate({
+          to: "/treino/ativo",
+          search: { type: draft.type as MuscleGroup, day: draft.day ?? undefined },
+          replace: true,
+        });
+        // não marca draftResolved — a navegação desmonta este componente
+      } else {
+        setDraft(null);
+        setDraftResolved(true);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftHydrated]);
+
+  useEffect(() => {
+    if (!draftResolved) return; // aguarda a decisão do rascunho primeiro
     const ids = list.map((e) => e.id);
     const anySets = Object.values(logs).some((l) => l.sets.length > 0);
     const sameIds = order.length === ids.length && order.every((id) => ids.includes(id));
@@ -109,7 +225,27 @@ function TreinoAtivo() {
       setExIdx(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list]);
+  }, [list, draftResolved]);
+
+  // Persiste o progresso a cada mudança (depois que já houve alguma atividade
+  // real) — assim, sair da tela sem querer não perde o treino em andamento.
+  useEffect(() => {
+    if (!draftResolved) return;
+    const hasProgress = phase !== "warmup" || Object.values(logs).some((l) => l.sets.length > 0);
+    if (!hasProgress) return;
+    setDraft({
+      type,
+      day: day ?? null,
+      phase,
+      startedAt,
+      order,
+      logs,
+      exIdx,
+      prs,
+      extraExerciseIds: extraIds,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, day, phase, startedAt, order, logs, exIdx, prs, extraIds, draftResolved]);
   const [setInput, setSetInput] = useState({ weight: "", reps: "" });
   // Descanso por timestamp (endsAt): a contagem continua correta mesmo se o
   // navegador acelerar/atrasar o intervalo com a aba em segundo plano.
@@ -126,9 +262,6 @@ function TreinoAtivo() {
   restRef.current = rest;
   const soundPrefRef = useRef(profile);
   soundPrefRef.current = profile;
-  const [prs, setPrs] = useState<{ exercise: string; type: "weight" | "reps"; value: number }[]>(
-    [],
-  );
 
   // warmup countdown
   useEffect(() => {
@@ -191,7 +324,6 @@ function TreinoAtivo() {
   const currentLog = current ? logs[current.id] : undefined;
   const totalSets = list.reduce((a, e) => a + e.sets, 0);
   const doneSets = Object.values(logs).reduce((a, l) => a + l.sets.length, 0);
-  const progressPct = Math.round((doneSets * 100) / totalSets);
 
   // Past PR lookups from previous sessions
   function pastBest(exId: string, exName?: string) {
@@ -386,6 +518,31 @@ function TreinoAtivo() {
     toast.info(`"${skipped}" foi para o fim da fila — séries registradas mantidas.`);
   };
 
+  // Adiciona um exercício (do banco ou de outro dia da semana) à sessão em
+  // andamento, sem alterar o plano do dia — vale só para este treino. Entra
+  // na fila logo após o exercício atual.
+  const addExtraExercise = (ex: Exercise) => {
+    if (list.some((e) => e.id === ex.id)) {
+      toast.info("Este exercício já está no treino de hoje.");
+      setAddExOpen(false);
+      return;
+    }
+    setExtraIds((prev) => [...prev, ex.id]);
+    setLogs((prev) => ({
+      ...prev,
+      [ex.id]: { exercise_id: ex.id, name: ex.name, group: ex.group, sets: [] },
+    }));
+    setOrder((prev) => {
+      if (prev.includes(ex.id)) return prev;
+      const insertAt = Math.min(exIdx + 1, prev.length);
+      const next = [...prev];
+      next.splice(insertAt, 0, ex.id);
+      return next;
+    });
+    toast.success(`"${ex.name}" adicionado — é o próximo da fila.`);
+    setAddExOpen(false);
+  };
+
   const finishWorkout = () => {
     const duration = Math.round((Date.now() - startedAt) / 60000);
     const doneExercises = order
@@ -398,6 +555,7 @@ function TreinoAtivo() {
     // não grava sessão vazia (nenhuma série registrada) — evita poluir o histórico
     if (doneExercises.length === 0) {
       toast.error("Nenhuma série registrada — o treino não foi salvo.");
+      setDraft(null);
       navigate({ to: "/treino" });
       return;
     }
@@ -410,6 +568,7 @@ function TreinoAtivo() {
       prs,
     };
     setSessions((prev) => [...prev, session]);
+    setDraft(null); // treino salvo — não há mais rascunho a retomar
     toast.success("Sessão salva!");
     // verifica conquistas com os dados recém-salvos (pequeno delay p/ persistir)
     setTimeout(async () => {
@@ -540,16 +699,21 @@ function TreinoAtivo() {
     <div className="p-3 pb-6 md:p-8 max-w-md md:max-w-2xl mx-auto">
       {/* ── progresso compacto ── */}
       <div className="mb-3">
-        <div className="flex justify-between text-xs text-muted-foreground mb-1">
+        <div className="flex justify-between items-center text-xs text-muted-foreground mb-1">
           <span>
             Exercício{" "}
             <span className="font-semibold text-foreground">
               {exIdx + 1}/{order.length}
             </span>
-          </span>
-          <span>
+            {" · "}
             {doneSets}/{totalSets} séries
           </span>
+          <button
+            onClick={() => setAddExOpen(true)}
+            className="flex items-center gap-1 text-primary font-medium shrink-0"
+          >
+            <Plus className="size-3.5" /> Adicionar
+          </button>
         </div>
         <div className="h-1.5 rounded-full bg-muted overflow-hidden">
           <div
@@ -972,6 +1136,74 @@ function TreinoAtivo() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Adicionar exercício avulso à sessão em andamento */}
+      <Dialog open={addExOpen} onOpenChange={setAddExOpen}>
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adicionar exercício</DialogTitle>
+          </DialogHeader>
+          <div className="text-xs text-muted-foreground mb-1">
+            Entra na fila logo após o exercício atual — só vale para o treino de hoje.
+          </div>
+          <Input
+            placeholder="Buscar exercício..."
+            value={addExQuery}
+            onChange={(e) => setAddExQuery(e.target.value)}
+            className="mb-2"
+          />
+          <div className="space-y-3">
+            {weekOptions.filter(addExFilter).length > 0 && (
+              <div>
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                  Da sua semana ({GROUP_LABEL_SHORT[type as MuscleGroup]})
+                </div>
+                <div className="space-y-1">
+                  {weekOptions.filter(addExFilter).map((e) => (
+                    <button
+                      key={e.id}
+                      onClick={() => addExtraExercise(e)}
+                      className="w-full text-left rounded-lg border border-border hover:border-primary hover:bg-accent px-3 py-2 text-sm"
+                    >
+                      {e.name}
+                      <span className="text-xs text-muted-foreground ml-1">
+                        · {e.sets}×{e.reps}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {bankOptions.filter(addExFilter).length > 0 && (
+              <div>
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                  Banco de exercícios
+                </div>
+                <div className="space-y-1">
+                  {bankOptions.filter(addExFilter).map((e) => (
+                    <button
+                      key={e.id}
+                      onClick={() => addExtraExercise(e)}
+                      className="w-full text-left rounded-lg border border-border hover:border-primary hover:bg-accent px-3 py-2 text-sm"
+                    >
+                      {e.name}
+                      <span className="text-xs text-muted-foreground ml-1">
+                        · {GROUP_LABEL_SHORT[e.group]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {weekOptions.filter(addExFilter).length === 0 &&
+              bankOptions.filter(addExFilter).length === 0 && (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum exercício encontrado.
+                </div>
+              )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

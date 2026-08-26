@@ -19,6 +19,7 @@ export const KEYS = {
   schedule: "hlt_week_schedule",
   goals: "hlt_meso_goals",
   plans: "hlt_workout_plans",
+  activeWorkout: "hlt_active_workout",
   backupMeta: "hlt_backup_meta",
 } as const;
 
